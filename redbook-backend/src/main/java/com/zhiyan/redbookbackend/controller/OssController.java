@@ -20,7 +20,9 @@ public class OssController {
 
     @Operation(summary = "获取 PUT 预签名上传地址")
     @PostMapping("/presign")
-    public Result presign(@RequestParam(value = "ext", required = false) String ext) {
-        return ossService.presignedPut(ext);
+    public Result presign(
+            @RequestParam(value = "ext", required = false) String ext,
+            @RequestParam(value = "contentType", required = false) String contentType) {
+        return ossService.presignedPut(ext, contentType);
     }
 }

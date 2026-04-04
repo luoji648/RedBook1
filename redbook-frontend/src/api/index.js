@@ -126,8 +126,11 @@ export function shareNote(noteId) {
   return post(`/share/note/${noteId}`)
 }
 
-export function ossPresign(ext) {
-  return postForm('/oss/presign', ext ? { ext } : {})
+export function ossPresign(ext, contentType) {
+  const params = {}
+  if (ext) params.ext = ext
+  if (contentType) params.contentType = contentType
+  return postForm('/oss/presign', params)
 }
 
 export function productList(params) {

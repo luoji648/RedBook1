@@ -29,11 +29,16 @@ async function handleUpload({ file, onError }) {
   uploading.value = true
   try {
     const ext = '.' + (file.name.split('.').pop() || 'jpg')
-    const { data } = await ossPresign(ext)
+    const contentType = file.type || 'application/octet-stream'
+    const { data } = await ossPresign(ext, contentType)
+    const headers = { 'Content-Type': contentType }
+    if (data.putAclPublicRead) {
+      headers['x-oss-object-acl'] = 'public-read'
+    }
     const putRes = await fetch(data.uploadUrl, {
       method: 'PUT',
       body: file,
-      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      headers,
     })
     if (!putRes.ok) throw new Error('上传失败')
     mediaUrls.value.push(data.publicUrl)
