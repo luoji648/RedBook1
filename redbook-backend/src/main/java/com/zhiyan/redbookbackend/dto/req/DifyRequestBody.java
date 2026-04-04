@@ -1,6 +1,7 @@
 package com.zhiyan.redbookbackend.dto.req;
 
-import com.alibaba.fastjson2.annotation.JSONField;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -25,7 +26,7 @@ public class DifyRequestBody implements Serializable {
     /**
      * 响应模式，streaming 流式，blocking 阻塞.
      */
-    @JSONField(name = "response_mode")
+    @JsonProperty("response_mode")
     private String responseMode;
 
     /**
@@ -34,8 +35,9 @@ public class DifyRequestBody implements Serializable {
     private String user;
 
     /**
-     * 会话id.
+     * 会话id（新会话不传或省略；空串部分 Dify 版本会 400）.
      */
-    @JSONField(name = "conversation_id")
+    @JsonProperty("conversation_id")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String conversationId;
 }

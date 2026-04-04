@@ -4,10 +4,14 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.amqp.rabbit.annotation.EnableRabbit;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @SpringBootApplication
+@EnableScheduling
+@EnableRabbit
 @MapperScan("com.zhiyan.redbookbackend.mapper")
 public class RedbookBackendApplication {
     public static void main(String[] args) {

@@ -50,6 +50,11 @@ public class User implements Serializable {
     private String icon = "";
 
     /**
+     * 递增后可使旧 JWT 失效
+     */
+    private Integer tokenVersion;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

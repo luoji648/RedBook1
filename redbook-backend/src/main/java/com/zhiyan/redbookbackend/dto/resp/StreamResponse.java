@@ -1,5 +1,7 @@
 package com.zhiyan.redbookbackend.dto.resp;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -9,6 +11,7 @@ import java.io.Serializable;
  * Dify流式调用响应.
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class StreamResponse implements Serializable {
 
     /**
@@ -24,11 +27,13 @@ public class StreamResponse implements Serializable {
     /**
      * 任务ID.
      */
+    @JsonProperty("task_id")
     private String taskId;
 
     /**
      * 消息唯一ID.
      */
+    @JsonProperty("message_id")
     private String messageId;
 
     /**
@@ -39,10 +44,12 @@ public class StreamResponse implements Serializable {
     /**
      * 创建时间戳.
      */
+    @JsonProperty("created_at")
     private Long createdAt;
 
     /**
      * 会话 ID.
      */
+    @JsonProperty("conversation_id")
     private String conversationId;
 }

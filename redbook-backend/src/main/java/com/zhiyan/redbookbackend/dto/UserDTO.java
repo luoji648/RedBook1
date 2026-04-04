@@ -12,4 +12,7 @@ public class UserDTO {
     private String nickName;
     @Schema(description = "头像URL", example = "https://example.com/avatar/101.png")
     private String icon;
+
+    @Schema(hidden = true)
+    private Integer tokenVersion;
 }

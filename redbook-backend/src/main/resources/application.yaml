@@ -10,11 +10,11 @@ spring:
     password: 123456
   data:
     redis:
-      client-type: lettuce  # ? jedis???? lettuce
+      client-type: lettuce
       host: 192.168.220.128
       port: 6379
       password: 123321
-      database: 0
+      database: 1
       lettuce:
         pool:
           max-active: 10
@@ -22,41 +22,56 @@ spring:
           min-idle: 1
           time-between-eviction-runs: 10s
   rabbitmq:
-    host: 192.168.220.128 # ?????IP
-    port: 5672 # ??
-    virtual-host: /hm-dp # ????
-    username: root # ???
-    password: 123321 # ??
+    host: 192.168.220.128
+    port: 5672
+    virtual-host: /redbook
+    username: root
+    password: 123321
     listener:
       simple:
-        prefetch: 5 # # ??????????5?????????????????
-        acknowledge-mode: auto # ??ack  ?????????????ack.  ?????????????????????
+        prefetch: 5
+        acknowledge-mode: auto
         retry:
-          enabled: true # ?????????
-          initial-interval: 1000ms # ??????????1?
-          multiplier: 1 # ???????????????? = multiplier * last-interval???csma-cd?
-          max-attempts: 3 # ??????
-          stateless: false # true????false??????????????????false
-#  jackson:
-#    default-property-inclusion: non_null # JSON?????????
+          enabled: true
+          initial-interval: 1000ms
+          multiplier: 1
+          max-attempts: 3
+          stateless: false
+
 mybatis-plus:
-  type-aliases-package: com.hmdp.entity # ?????
-# springdoc-openapi????
+  type-aliases-package: com.zhiyan.redbookbackend.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
 springdoc:
   group-configs:
     - group: 'default'
       paths-to-match: '/**'
-      # ????????????
-      packages-to-scan: com.hmdp.controller
-# knife4j???????????????
+      packages-to-scan: com.zhiyan.redbookbackend.controller
+
 knife4j:
   enable: true
   setting:
     language: zh_cn
+
+jwt:
+  secret: "redbook-jwt-secret-key-change-me-in-production-min-32-chars!!"
+  expire-seconds: 36000
+
+redbook:
+  like-user-shards: 8
+  like-note-shards: 8
+  sms-max-per-day: 20
+  frontend-note-url: "http://localhost:5173/note/{id}"
+
 dify:
+  # 对话类应用（非纯 Workflow）：与 Dify 控制台「API 访问」中的 chat-messages 地址一致，需含 /v1/chat-messages
   url: http://localhost/v1/chat-messages
   key:
-    test: app-JI83dLRHlJqjukW9zAGkdp8v
+    note-assistant: ${DIFY_NOTE_KEY:app-JI83dLRHlJqjukW9zAGkdp8v}
+
 logging:
   level:
-    com.hmdp: debug
+    com.zhiyan.redbookbackend: debug
+    org.springframework.amqp: warn
+    com.rabbitmq: warn

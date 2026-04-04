@@ -2,6 +2,9 @@ package com.zhiyan.redbookbackend.config;
 
 import com.zhiyan.redbookbackend.dto.Result;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -9,9 +12,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class WebExceptionAdvice {
 
+    /**
+     * 显式指定 JSON，避免 SSE 等请求携带的 Accept: text/event-stream 导致无法写出 Result（HttpMediaTypeNotAcceptableException）。
+     */
     @ExceptionHandler(RuntimeException.class)
-    public Result handleRuntimeException(RuntimeException e) {
+    public ResponseEntity<Result> handleRuntimeException(RuntimeException e) {
         log.error(e.toString(), e);
-        return Result.fail("服务器异常");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Result.fail("服务器异常"));
     }
 }

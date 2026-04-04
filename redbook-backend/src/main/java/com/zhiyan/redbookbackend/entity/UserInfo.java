@@ -30,7 +30,7 @@ public class UserInfo implements Serializable {
      * 主键，用户id
      */
     @Schema(description = "用户ID", example = "101")
-    @TableId(value = "user_id", type = IdType.AUTO)
+    @TableId(value = "user_id", type = IdType.INPUT)
     private Long userId;
 
     /**
@@ -78,8 +78,8 @@ public class UserInfo implements Serializable {
     /**
      * 会员级别，0~9级,0代表未开通会员
      */
-    @Schema(description = "会员等级相关标记（与库表一致）", example = "false")
-    private Boolean level;
+    @Schema(description = "会员级别 0~9", example = "0")
+    private Integer level;
 
     /**
      * 创建时间

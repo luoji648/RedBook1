@@ -3,6 +3,9 @@ package com.zhiyan.redbookbackend.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.zhiyan.redbookbackend.dto.LoginFormDTO;
 import com.zhiyan.redbookbackend.dto.Result;
+import com.zhiyan.redbookbackend.dto.req.ChangePasswordDTO;
+import com.zhiyan.redbookbackend.dto.req.ProfileUpdateDTO;
+import com.zhiyan.redbookbackend.dto.req.UserInfoUpdateDTO;
 import com.zhiyan.redbookbackend.entity.User;
 import jakarta.servlet.http.HttpSession;
 
@@ -16,6 +19,18 @@ public interface IUserService extends IService<User> {
     Result sendCode(String phone, HttpSession session);
 
     Result login(LoginFormDTO loginForm, HttpSession session);
+
+    Result logout(String authorizationHeader);
+
+    Result changePassword(ChangePasswordDTO dto);
+
+    Result me();
+
+    Result updateProfile(ProfileUpdateDTO dto, String authorization);
+
+    Result myInfo();
+
+    Result updateMyInfo(UserInfoUpdateDTO dto);
 
     Result sign();
 

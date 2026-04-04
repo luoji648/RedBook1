@@ -1,5 +1,6 @@
 package com.zhiyan.redbookbackend.dto.resp;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -19,11 +20,13 @@ public class BlockResponse implements Serializable {
     /**
      * 消息唯一 ID.
      */
+    @JsonProperty("message_id")
     private String messageId;
 
     /**
      * 任务ID.
      */
+    @JsonProperty("task_id")
     private String taskId;
 
     /**
@@ -34,6 +37,7 @@ public class BlockResponse implements Serializable {
     /**
      * 会话 ID.
      */
+    @JsonProperty("conversation_id")
     private String conversationId;
 
     /**
@@ -54,6 +58,7 @@ public class BlockResponse implements Serializable {
     /**
      * 创建时间戳.
      */
+    @JsonProperty("created_at")
     private Long createdAt;
 
 }

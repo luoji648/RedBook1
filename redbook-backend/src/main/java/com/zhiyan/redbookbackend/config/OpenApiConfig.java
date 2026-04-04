@@ -13,12 +13,12 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
 
     @Bean
-    public OpenAPI hmDianPingOpenAPI() {
+    public OpenAPI redbookOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("黑马点评 API 文档")
-                        .description("点评与探店业务 REST 接口，响应体统一为 Result（success、errorMsg、data、total）。")
+                        .title("小红书 RedBook API")
+                        .description("UGC 社区 REST 接口，统一响应 Result（success、errorMsg、data、total）。")
                         .version("1.0.0")
-                        .contact(new Contact().name("hm-dianping")));
+                        .contact(new Contact().name("redbook")));
     }
 }

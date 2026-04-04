@@ -3,18 +3,21 @@ package com.zhiyan.redbookbackend.interceptor;
 import com.zhiyan.redbookbackend.util.UserHolder;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+@Component
 public class LoginInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // 判断是否需要拦截(ThreadLocal中是否有用户)
+        // 跨域时浏览器先发 OPTIONS 预检，无登录态；若此处 401 会导致真实请求根本不会发出（Network 里只见「预配标头」）
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
         if (UserHolder.getUser() == null) {
-            // 不存在，拦截，返回401状态码
             response.setStatus(401);
             return false;
         }
-        // 存在，放行
         return true;
     }
 }
