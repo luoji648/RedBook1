@@ -12,6 +12,14 @@ const baseURL =
 
 export const apiBase = baseURL
 
+/** 将后端错误文案转为对用户更友好的提示 */
+function formatApiErrorMsg(msg) {
+  if (msg === '优惠券不可用') {
+    return '优惠券不可用，请重新下单~'
+  }
+  return msg || '请求失败'
+}
+
 const instance = axios.create({
   baseURL,
   timeout: 120000,
@@ -45,8 +53,9 @@ export async function get(url, params) {
   const res = await instance.get(url, { params })
   const body = res.data
   if (!body.success) {
-    ElMessage.error(body.errorMsg || '请求失败')
-    throw new Error(body.errorMsg || '请求失败')
+    const text = formatApiErrorMsg(body.errorMsg)
+    ElMessage.error(text)
+    throw new Error(text)
   }
   return { data: body.data, total: body.total }
 }
@@ -55,8 +64,9 @@ export async function post(url, data, config) {
   const res = await instance.post(url, data, config)
   const body = res.data
   if (!body.success) {
-    ElMessage.error(body.errorMsg || '请求失败')
-    throw new Error(body.errorMsg || '请求失败')
+    const text = formatApiErrorMsg(body.errorMsg)
+    ElMessage.error(text)
+    throw new Error(text)
   }
   return { data: body.data, total: body.total }
 }
@@ -65,8 +75,9 @@ export async function put(url, data, config) {
   const res = await instance.put(url, data ?? {}, config)
   const body = res.data
   if (!body.success) {
-    ElMessage.error(body.errorMsg || '请求失败')
-    throw new Error(body.errorMsg || '请求失败')
+    const text = formatApiErrorMsg(body.errorMsg)
+    ElMessage.error(text)
+    throw new Error(text)
   }
   return { data: body.data, total: body.total }
 }
@@ -75,8 +86,9 @@ export async function del(url) {
   const res = await instance.delete(url)
   const body = res.data
   if (!body.success) {
-    ElMessage.error(body.errorMsg || '请求失败')
-    throw new Error(body.errorMsg || '请求失败')
+    const text = formatApiErrorMsg(body.errorMsg)
+    ElMessage.error(text)
+    throw new Error(text)
   }
   return { data: body.data, total: body.total }
 }
@@ -85,8 +97,9 @@ export async function postForm(url, params) {
   const res = await instance.post(url, null, { params })
   const body = res.data
   if (!body.success) {
-    ElMessage.error(body.errorMsg || '请求失败')
-    throw new Error(body.errorMsg || '请求失败')
+    const text = formatApiErrorMsg(body.errorMsg)
+    ElMessage.error(text)
+    throw new Error(text)
   }
   return { data: body.data, total: body.total }
 }

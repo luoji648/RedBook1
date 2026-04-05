@@ -5,16 +5,21 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhiyan.redbookbackend.dto.Result;
 import com.zhiyan.redbookbackend.entity.Note;
 import com.zhiyan.redbookbackend.entity.NoteCollect;
+import com.zhiyan.redbookbackend.entity.UserInfo;
 import com.zhiyan.redbookbackend.mapper.NoteCollectMapper;
 import com.zhiyan.redbookbackend.mapper.NoteMapper;
 import com.zhiyan.redbookbackend.service.ICollectService;
+import com.zhiyan.redbookbackend.service.INoteService;
+import com.zhiyan.redbookbackend.service.IUserInfoService;
 import com.zhiyan.redbookbackend.util.UserHolder;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,6 +29,10 @@ public class CollectServiceImpl implements ICollectService {
     private NoteCollectMapper noteCollectMapper;
     @Resource
     private NoteMapper noteMapper;
+    @Resource
+    private IUserInfoService userInfoService;
+    @Resource
+    private INoteService noteService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -78,5 +87,37 @@ public class CollectServiceImpl implements ICollectService {
         }
         List<Note> notes = noteMapper.selectList(Wrappers.<Note>lambdaQuery().in(Note::getId, ids));
         return Result.ok(notes, p.getTotal());
+    }
+
+    @Override
+    public Result userCollects(long profileUserId, long current, long size) {
+        Long viewer = UserHolder.getUser() != null ? UserHolder.getUser().getId() : null;
+        if (viewer == null || !viewer.equals(profileUserId)) {
+            UserInfo info = userInfoService.getById(profileUserId);
+            if (info == null || !Boolean.TRUE.equals(info.getCollectPublic())) {
+                return Result.fail("该用户未公开收藏内容");
+            }
+        }
+        Page<NoteCollect> page = Page.of(current, size);
+        var p = noteCollectMapper.selectPage(page,
+                Wrappers.<NoteCollect>lambdaQuery().eq(NoteCollect::getUserId, profileUserId).orderByDesc(NoteCollect::getCreateTime));
+        List<Long> ids = p.getRecords().stream().map(NoteCollect::getNoteId).collect(Collectors.toList());
+        if (ids.isEmpty()) {
+            return Result.ok(List.of(), 0L);
+        }
+        List<Note> notes = noteMapper.selectList(Wrappers.<Note>lambdaQuery().in(Note::getId, ids));
+        Map<Long, Note> byId = notes.stream().collect(Collectors.toMap(Note::getId, n -> n, (a, b) -> a));
+        List<Map<String, Object>> vos = new ArrayList<>();
+        for (Long nid : ids) {
+            Note n = byId.get(nid);
+            if (n == null || n.getStatus() == null || n.getStatus() != 1) {
+                continue;
+            }
+            if (!noteService.canViewerAccessNote(n, viewer)) {
+                continue;
+            }
+            vos.add(noteService.noteCardVo(n, viewer));
+        }
+        return Result.ok(vos, p.getTotal());
     }
 }

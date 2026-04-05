@@ -3,6 +3,7 @@ package com.zhiyan.redbookbackend.controller;
 import com.zhiyan.redbookbackend.dto.LoginFormDTO;
 import com.zhiyan.redbookbackend.dto.Result;
 import com.zhiyan.redbookbackend.dto.req.ChangePasswordDTO;
+import com.zhiyan.redbookbackend.dto.req.PasswordLoginDTO;
 import com.zhiyan.redbookbackend.dto.req.ProfileUpdateDTO;
 import com.zhiyan.redbookbackend.dto.req.UserInfoUpdateDTO;
 import com.zhiyan.redbookbackend.service.IUserService;
@@ -26,9 +27,18 @@ public class UserController {
         return userService.sendCode(phone, session);
     }
 
-    @Operation(summary = "验证码登录，返回 JWT")
+    @Operation(summary = "验证码登录，返回 JWT（phone + code）")
     @PostMapping("/login")
     public Result login(@RequestBody LoginFormDTO form, HttpSession session) {
+        return userService.login(form, session);
+    }
+
+    @Operation(summary = "密码登录，返回 JWT（phone + password）")
+    @PostMapping("/login/password")
+    public Result loginByPassword(@RequestBody PasswordLoginDTO dto, HttpSession session) {
+        LoginFormDTO form = new LoginFormDTO();
+        form.setPhone(dto.getPhone());
+        form.setPassword(dto.getPassword());
         return userService.login(form, session);
     }
 
@@ -44,7 +54,7 @@ public class UserController {
         return userService.sign();
     }
 
-    @Operation(summary = "连续签到天数（本月位图）")
+    @Operation(summary = "连续签到天数（本月 BitMap，自今日向前连续）")
     @GetMapping("/sign/count")
     public Result signCount() {
         return userService.signCount();
@@ -54,6 +64,12 @@ public class UserController {
     @GetMapping("/me")
     public Result me() {
         return userService.me();
+    }
+
+    @Operation(summary = "公开用户主页资料（不含手机号）")
+    @GetMapping("/public/{userId}")
+    public Result publicProfile(@PathVariable("userId") Long userId) {
+        return userService.publicProfile(userId);
     }
 
     @Operation(summary = "更新昵称与头像")

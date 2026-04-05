@@ -3,6 +3,10 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import NoteMasonry from '../components/NoteMasonry.vue'
 import { noteFeed } from '../api'
 
+defineProps({
+  embedded: { type: Boolean, default: false },
+})
+
 const list = ref([])
 const maxTime = ref(null)
 const offset = ref(0)
@@ -52,7 +56,7 @@ onUnmounted(() => {
 
 <template>
   <div class="feed">
-    <h2 class="h">关注动态</h2>
+    <h2 v-if="!embedded" class="h">关注动态</h2>
     <p v-if="empty" class="empty">还没有动态，去发现页逛逛或关注作者吧</p>
     <NoteMasonry v-else :list="list" />
     <div v-if="loading" class="more">加载中…</div>

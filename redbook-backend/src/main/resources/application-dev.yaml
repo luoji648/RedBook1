@@ -5,4 +5,4 @@ aliyun:
     access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
     bucket-name: ${ALIYUN_OSS_BUCKET:}
     url-prefix: ${ALIYUN_OSS_URL_PREFIX:}
-    object-public-read: true
+    object-public-read: ${ALIYUN_OSS_OBJECT_PUBLIC_READ:true}

@@ -12,8 +12,11 @@ import com.zhiyan.redbookbackend.dto.UserDTO;
 import com.zhiyan.redbookbackend.dto.req.ChangePasswordDTO;
 import com.zhiyan.redbookbackend.dto.req.ProfileUpdateDTO;
 import com.zhiyan.redbookbackend.dto.req.UserInfoUpdateDTO;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.zhiyan.redbookbackend.entity.User;
+import com.zhiyan.redbookbackend.entity.UserFollow;
 import com.zhiyan.redbookbackend.entity.UserInfo;
+import com.zhiyan.redbookbackend.mapper.UserFollowMapper;
 import com.zhiyan.redbookbackend.mapper.UserMapper;
 import com.zhiyan.redbookbackend.service.IUserInfoService;
 import com.zhiyan.redbookbackend.service.IUserService;
@@ -55,6 +58,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private RedbookProperties redbookProperties;
     @Resource
     private IUserInfoService userInfoService;
+    @Resource
+    private UserFollowMapper userFollowMapper;
 
     @Override
     public Result sendCode(String phone, HttpSession session) {
@@ -88,16 +93,35 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         if (RegexUtils.isPhoneInvalid(phone)) {
             return Result.fail("手机号格式错误");
         }
-        String cacheCode = stringRedisTemplate.opsForValue().get(RedisConstants.LOGIN_CODE_KEY + phone);
-        String code = loginForm.getCode();
-        if (cacheCode == null || !cacheCode.equals(code)) {
-            return Result.fail("验证码错误或已过期");
-        }
-        stringRedisTemplate.delete(RedisConstants.LOGIN_CODE_KEY + phone);
+        User user;
+        if (loginForm.getPassword() != null && !loginForm.getPassword().isBlank()) {
+            user = userMapper.getByPhone(phone);
+            if (user == null) {
+                return Result.fail("手机号或密码错误");
+            }
+            if (user.getPassword() == null || user.getPassword().isEmpty()) {
+                return Result.fail("请先使用验证码登录并设置密码");
+            }
+            try {
+                if (!PasswordEncoder.matches(user.getPassword(), loginForm.getPassword())) {
+                    return Result.fail("手机号或密码错误");
+                }
+            } catch (RuntimeException ex) {
+                log.warn("password verify failed for phone={}", phone);
+                return Result.fail("手机号或密码错误");
+            }
+        } else {
+            String cacheCode = stringRedisTemplate.opsForValue().get(RedisConstants.LOGIN_CODE_KEY + phone);
+            String code = loginForm.getCode();
+            if (cacheCode == null || !cacheCode.equals(code)) {
+                return Result.fail("验证码错误或已过期");
+            }
+            stringRedisTemplate.delete(RedisConstants.LOGIN_CODE_KEY + phone);
 
-        User user = userMapper.getByPhone(phone);
-        if (user == null) {
-            user = createUserWithPhone(phone);
+            user = userMapper.getByPhone(phone);
+            if (user == null) {
+                user = createUserWithPhone(phone);
+            }
         }
         if (user.getTokenVersion() == null) {
             user.setTokenVersion(0);
@@ -245,6 +269,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         if (dto.getBirthday() != null) {
             info.setBirthday(dto.getBirthday());
         }
+        if (dto.getCollectPublic() != null) {
+            info.setCollectPublic(dto.getCollectPublic());
+        }
+        if (dto.getLikePublic() != null) {
+            info.setLikePublic(dto.getLikePublic());
+        }
         info.setUpdateTime(LocalDateTime.now());
         userInfoService.updateById(info);
         return Result.ok();
@@ -267,8 +297,40 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         String keySuffix = now.format(DateTimeFormatter.ofPattern(":yyyy/MM"));
         String key = RedisConstants.USER_SIGN_KEY + userId + keySuffix;
         int dayOfMonth = now.getDayOfMonth();
-        stringRedisTemplate.opsForValue().setBit(key, dayOfMonth - 1, true);
-        return Result.ok();
+        int bitIndex = dayOfMonth - 1;
+        Boolean already = stringRedisTemplate.opsForValue().getBit(key, bitIndex);
+        if (Boolean.TRUE.equals(already)) {
+            return Result.ok(Map.of("firstSignToday", false));
+        }
+        stringRedisTemplate.opsForValue().setBit(key, bitIndex, true);
+        return Result.ok(Map.of("firstSignToday", true));
+    }
+
+    @Override
+    public Result publicProfile(Long userId) {
+        User user = getById(userId);
+        if (user == null) {
+            return Result.fail("用户不存在");
+        }
+        UserInfo info = userInfoService.getById(userId);
+        Map<String, Object> pubUser = new HashMap<>();
+        pubUser.put("id", user.getId());
+        pubUser.put("nickName", user.getNickName());
+        pubUser.put("icon", user.getIcon());
+        Map<String, Object> map = new HashMap<>();
+        map.put("user", pubUser);
+        map.put("userInfo", info);
+        Long viewer = UserHolder.getUser() != null ? UserHolder.getUser().getId() : null;
+        boolean followedByMe = false;
+        if (viewer != null && !viewer.equals(userId)) {
+            Long c = userFollowMapper.selectCount(Wrappers.<UserFollow>lambdaQuery()
+                    .eq(UserFollow::getFollowerId, viewer)
+                    .eq(UserFollow::getFolloweeId, userId));
+            followedByMe = c != null && c > 0;
+        }
+        map.put("followedByMe", followedByMe);
+        map.put("isSelf", viewer != null && viewer.equals(userId));
+        return Result.ok(map);
     }
 
     @Override
@@ -289,13 +351,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         if (num == null || num == 0) {
             return Result.ok(0);
         }
+        // 从今天（含）向前数连续已签到天数，避免「仅签今天」因月初未签而显示 0
         int cnt = 0;
-        while (true) {
-            if ((num & 1) == 0) {
+        for (int d = dayOfMonth; d >= 1; d--) {
+            int bitIdx = d - 1;
+            if (((num >>> bitIdx) & 1L) == 1L) {
+                cnt++;
+            } else {
                 break;
             }
-            cnt++;
-            num >>>= 1;
         }
         return Result.ok(cnt);
     }

@@ -5,6 +5,7 @@ import com.zhiyan.redbookbackend.entity.Note;
 import com.zhiyan.redbookbackend.entity.ShareLink;
 import com.zhiyan.redbookbackend.mapper.NoteMapper;
 import com.zhiyan.redbookbackend.mapper.ShareLinkMapper;
+import com.zhiyan.redbookbackend.service.INoteService;
 import com.zhiyan.redbookbackend.service.IShareLinkService;
 import com.zhiyan.redbookbackend.util.UserHolder;
 import jakarta.annotation.Resource;
@@ -25,6 +26,8 @@ public class ShareLinkServiceImpl implements IShareLinkService {
     private ShareLinkMapper shareLinkMapper;
     @Resource
     private NoteMapper noteMapper;
+    @Resource
+    private INoteService noteService;
 
     @Override
     public Result createForNote(Long noteId) {
@@ -33,8 +36,15 @@ public class ShareLinkServiceImpl implements IShareLinkService {
             return Result.fail("笔记不存在");
         }
         Long me = UserHolder.getUser().getId();
-        if (!note.getUserId().equals(me)) {
-            return Result.fail("只能分享自己的笔记");
+        if (note.getUserId().equals(me)) {
+            // 作者：沿用原逻辑，任意状态均可生成短链
+        } else {
+            if (note.getStatus() == null || note.getStatus() != 1) {
+                return Result.fail("仅已发布笔记可被转发分享");
+            }
+            if (!noteService.canViewerAccessNote(note, me)) {
+                return Result.fail("无权分享该笔记");
+            }
         }
         String code;
         for (int i = 0; i < 8; i++) {

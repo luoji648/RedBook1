@@ -1,6 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { orderMy } from '../api'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { orderMy, orderRefund, orderClose, orderDeleteRecord } from '../api'
+
+const router = useRouter()
 
 const list = ref([])
 const current = ref(1)
@@ -10,6 +14,7 @@ function statusText(s) {
   if (s === 0) return '待支付'
   if (s === 1) return '已支付'
   if (s === 2) return '已取消'
+  if (s === 3) return '已退款'
   return String(s)
 }
 
@@ -17,36 +22,146 @@ function yuan(cent) {
   return ((cent || 0) / 100).toFixed(2)
 }
 
-async function load() {
+async function load(append) {
   try {
     const { data, total: t } = await orderMy({ current: current.value, size: 10 })
-    list.value = data || []
+    const rows = data || []
+    if (append) {
+      list.value = [...list.value, ...rows]
+    } else {
+      list.value = rows
+    }
     total.value = t || 0
   } catch {
-    list.value = []
+    if (!append) list.value = []
   }
 }
 
 function next() {
   if (list.value.length >= total.value) return
   current.value += 1
-  load()
+  load(true)
 }
 
-onMounted(load)
+function canRefund(o) {
+  return o.status === 1 && o.payCent != null
+}
+
+function canClose(o) {
+  return o.status === 0
+}
+
+function canDeleteRecord(o) {
+  return o.status === 1 || o.status === 2 || o.status === 3
+}
+
+function openDetail(o) {
+  router.push({ name: 'order-detail', params: { orderId: String(o.id) } })
+}
+
+async function refund(o) {
+  try {
+    await ElMessageBox.confirm(
+      '退款将退回钱包：实付金额 + 优惠券抵扣部分，已用优惠券将恢复为未使用。确定退款？',
+      '申请退款',
+      { type: 'warning' }
+    )
+    await orderRefund(o.id)
+    ElMessage.success('已退款')
+    current.value = 1
+    await load(false)
+  } catch (e) {
+    if (e !== 'cancel') {
+      /* http 已提示 */
+    }
+  }
+}
+
+async function closeOrder(o) {
+  try {
+    await ElMessageBox.confirm(
+      '关闭后订单将取消，商品会回到购物车。确定关闭？',
+      '关闭订单',
+      { type: 'warning' }
+    )
+    await orderClose(o.id)
+    ElMessage.success('订单已关闭')
+    current.value = 1
+    await load(false)
+  } catch (e) {
+    if (e !== 'cancel') {
+      /* http 已提示 */
+    }
+  }
+}
+
+async function deleteRecord(o) {
+  try {
+    await ElMessageBox.confirm(
+      '删除后无法恢复，仅移除订单记录（已支付订单不会自动退款）。确定删除？',
+      '删除订单记录',
+      { type: 'warning' }
+    )
+    await orderDeleteRecord(o.id)
+    ElMessage.success('已删除')
+    current.value = 1
+    await load(false)
+  } catch (e) {
+    if (e !== 'cancel') {
+      /* http 已提示 */
+    }
+  }
+}
+
+onMounted(() => load(false))
 </script>
 
 <template>
   <div class="orders">
     <h2>我的订单</h2>
     <div v-if="!list.length" class="empty">暂无订单</div>
-    <div v-for="o in list" :key="o.id" class="row">
-      <div class="id">订单 #{{ o.id }}</div>
-      <div class="meta">
-        <span>{{ statusText(o.status) }}</span>
-        <span class="price">¥{{ yuan(o.totalCent) }}</span>
+    <div v-for="o in list" :key="o.id" class="row" @click="openDetail(o)">
+      <div class="head">
+        <span class="id">订单 #{{ o.id }}</span>
+        <span class="st">{{ statusText(o.status) }}</span>
+      </div>
+      <div class="prices">
+        <span>商品总额 ¥{{ yuan(o.totalCent) }}</span>
+        <template v-if="o.payCent != null">
+          <span v-if="o.discountCent" class="disc">优惠 ¥{{ yuan(o.discountCent) }}</span>
+          <span class="pay">实付 ¥{{ yuan(o.payCent) }}</span>
+        </template>
       </div>
       <div class="time">{{ o.createTime }}</div>
+      <div class="row-actions" @click.stop>
+        <el-button
+          v-if="canClose(o)"
+          type="danger"
+          plain
+          size="small"
+          @click="closeOrder(o)"
+        >
+          关闭订单
+        </el-button>
+        <el-button
+          v-if="canDeleteRecord(o)"
+          type="info"
+          plain
+          size="small"
+          @click="deleteRecord(o)"
+        >
+          删除记录
+        </el-button>
+        <el-button
+          v-if="canRefund(o)"
+          type="warning"
+          plain
+          size="small"
+          @click="refund(o)"
+        >
+          申请退款
+        </el-button>
+      </div>
     </div>
     <el-button v-if="list.length < total" text type="primary" @click="next">下一页</el-button>
   </div>
@@ -67,23 +182,49 @@ h2 {
   padding: 32px;
 }
 .row {
-  padding: 12px 0;
+  padding: 14px 0;
   border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+}
+.row:hover {
+  background: #fafafa;
+}
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .id {
   font-weight: 600;
 }
-.meta {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 6px;
-}
-.price {
+.st {
+  font-size: 13px;
   color: #ff2442;
+}
+.prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #666;
+}
+.disc {
+  color: #e6a23c;
+}
+.pay {
+  color: #333;
+  font-weight: 600;
 }
 .time {
   font-size: 12px;
   color: #999;
-  margin-top: 4px;
+  margin-top: 6px;
+}
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 </style>

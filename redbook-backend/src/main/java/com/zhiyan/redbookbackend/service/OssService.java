@@ -7,6 +7,7 @@ import com.aliyun.oss.model.GeneratePresignedUrlRequest;
 import com.zhiyan.redbookbackend.config.AliyunOssProperties;
 import com.zhiyan.redbookbackend.dto.Result;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.net.URL;
@@ -15,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OssService {
@@ -23,15 +25,26 @@ public class OssService {
 
     /** contentType 须与浏览器 PUT 请求的 Content-Type 一致，否则 OSS 返回 403。 */
     public Result presignedPut(String ext, String contentType) {
-        if (ossProperties.getAccessKeyId() == null || ossProperties.getAccessKeyId().startsWith("your-")) {
-            return Result.fail("请在配置中填写有效的 aliyun.oss.access-key-id / secret");
+        if (ossProperties.getAccessKeyId() == null || ossProperties.getAccessKeyId().isBlank()
+                || ossProperties.getAccessKeyId().startsWith("your-")) {
+            return Result.fail("请在配置或环境变量中填写有效的 ALIYUN_OSS_ACCESS_KEY_ID / ALIYUN_OSS_ACCESS_KEY_SECRET");
+        }
+        if (ossProperties.getAccessKeySecret() == null || ossProperties.getAccessKeySecret().isBlank()) {
+            return Result.fail("请在配置或环境变量中填写 ALIYUN_OSS_ACCESS_KEY_SECRET（当前为空）");
+        }
+        if (ossProperties.getBucketName() == null || ossProperties.getBucketName().isBlank()) {
+            return Result.fail("请在配置或环境变量中填写 ALIYUN_OSS_BUCKET（Bucket 名称，当前为空）");
+        }
+        String endpoint = normalizeEndpoint(ossProperties.getEndpoint());
+        if (endpoint.isBlank()) {
+            return Result.fail("请在配置或环境变量中填写 ALIYUN_OSS_ENDPOINT（如 oss-cn-beijing.aliyuncs.com）");
         }
         String suffix = (ext == null || ext.isBlank()) ? "" : ext.startsWith(".") ? ext : "." + ext;
         String objectKey = "uploads/" + UUID.randomUUID().toString().replace("-", "") + suffix;
         String ct = safeContentType(contentType);
         try {
             OSS oss = new OSSClientBuilder().build(
-                    ossProperties.getEndpoint(),
+                    endpoint,
                     ossProperties.getAccessKeyId(),
                     ossProperties.getAccessKeySecret());
             Date exp = new Date(System.currentTimeMillis() + 3600_000L);
@@ -50,8 +63,21 @@ public class OssService {
             m.put("putAclPublicRead", ossProperties.isObjectPublicRead());
             return Result.ok(m);
         } catch (Exception e) {
+            log.warn("OSS 预签名失败 endpoint={} bucket={}", endpoint, ossProperties.getBucketName(), e);
             return Result.fail("生成上传地址失败: " + e.getMessage());
         }
+    }
+
+    /** SDK 建议使用带协议的 Endpoint；无协议时补上 https:// */
+    private static String normalizeEndpoint(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String s = raw.trim();
+        if (s.startsWith("http://") || s.startsWith("https://")) {
+            return s;
+        }
+        return "https://" + s;
     }
 
     /**

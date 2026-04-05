@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Setting } from '@element-plus/icons-vue'
 import {
   fetchMe,
@@ -10,8 +10,7 @@ import {
   likeMy,
   followFollowing,
   followFollowers,
-  signIn,
-  signCount,
+  deleteNote,
 } from '../api'
 
 const router = useRouter()
@@ -21,23 +20,12 @@ const tab = ref('notes')
 const list = ref([])
 const total = ref(0)
 const current = ref(1)
-const streak = ref(0)
-
 async function loadMe() {
   try {
     const { data } = await fetchMe()
     me.value = data
   } catch {
     me.value = null
-  }
-}
-
-async function loadStreak() {
-  try {
-    const { data } = await signCount()
-    streak.value = data ?? 0
-  } catch {
-    streak.value = 0
   }
 }
 
@@ -91,14 +79,8 @@ async function more() {
   }
 }
 
-async function doSign() {
-  try {
-    await signIn()
-    ElMessage.success('签到成功')
-    loadStreak()
-  } catch {
-    /* */
-  }
+function goSignPage() {
+  router.push({ name: 'daily-sign' })
 }
 
 function goNote(n) {
@@ -109,9 +91,36 @@ function goSettings() {
   router.push({ name: 'settings' })
 }
 
+const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+
+function goUserProfile(u) {
+  if (!u?.id) return
+  router.push({ name: 'user-profile', params: { userId: String(u.id) } })
+}
+
+function editNote(n) {
+  router.push({ name: 'publish', query: { id: String(n.id) } })
+}
+
+async function removeNote(n) {
+  try {
+    await ElMessageBox.confirm('确定删除该笔记？删除后不可恢复。', '删除笔记', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+    await deleteNote(n.id)
+    ElMessage.success('已删除')
+    await loadTab()
+  } catch (e) {
+    if (e !== 'cancel') {
+      /* */
+    }
+  }
+}
+
 onMounted(async () => {
   await loadMe()
-  await loadStreak()
   await loadTab()
 })
 </script>
@@ -126,12 +135,12 @@ onMounted(async () => {
       />
       <div class="txt">
         <div class="name">{{ me.user?.nickName || '用户' }}</div>
-        <div class="sub">连续签到 {{ streak }} 天 · 粉丝 {{ me.userInfo?.fans ?? 0 }} · 关注 {{ me.userInfo?.followee ?? 0 }}</div>
+        <div class="sub">粉丝 {{ me.userInfo?.fans ?? 0 }} · 关注 {{ me.userInfo?.followee ?? 0 }}</div>
       </div>
       <el-button :icon="Setting" circle @click="goSettings" />
     </div>
     <div class="row">
-      <el-button type="primary" plain size="small" @click="doSign">每日签到</el-button>
+      <el-button type="primary" plain size="small" @click="goSignPage">每日签到</el-button>
       <el-button size="small" @click="router.push({ name: 'orders' })">我的订单</el-button>
     </div>
 
@@ -144,21 +153,27 @@ onMounted(async () => {
     </el-tabs>
 
     <div v-if="tab === 'notes' || tab === 'collect' || tab === 'like'" class="grid">
-      <div
-        v-for="n in list"
-        :key="n.id"
-        class="cell"
-        @click="goNote(n)"
-      >
-        <div class="cover">{{ (n.title || n.content || '笔记').slice(0, 20) }}</div>
-        <div class="t">{{ n.title || '无标题' }}</div>
+      <div v-for="n in list" :key="n.id" class="cell">
+        <div class="cover" @click="goNote(n)">{{ (n.title || n.content || '笔记').slice(0, 20) }}</div>
+        <div class="t" @click="goNote(n)">{{ n.title || '无标题' }}</div>
+        <div v-if="tab === 'notes'" class="ops" @click.stop>
+          <el-button link type="primary" size="small" @click="editNote(n)">编辑</el-button>
+          <el-button link type="danger" size="small" @click="removeNote(n)">删除</el-button>
+        </div>
       </div>
     </div>
 
     <div v-else class="ulist">
       <div v-for="u in list" :key="u.id" class="urow">
-        <span>{{ u.nickName || '用户' }}</span>
-        <span class="muted">ID {{ u.id }}</span>
+        <div class="uinfo">
+          <img
+            :src="u.icon || defaultAvatar"
+            class="uav"
+            alt=""
+            @click="goUserProfile(u)"
+          />
+          <span class="uname">{{ u.nickName || '用户' }}</span>
+        </div>
       </div>
     </div>
 
@@ -236,6 +251,12 @@ onMounted(async () => {
   padding: 8px;
   font-size: 13px;
 }
+.ops {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 8px 8px;
+}
 .ulist {
   display: flex;
   flex-direction: column;
@@ -243,13 +264,29 @@ onMounted(async () => {
 }
 .urow {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   padding: 10px 0;
   border-bottom: 1px solid #f0f0f0;
 }
-.muted {
-  color: #999;
-  font-size: 12px;
+.uinfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.uav {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.uname {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .more {
   width: 100%;

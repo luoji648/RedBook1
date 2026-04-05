@@ -12,4 +12,8 @@ public class UserInfoUpdateDTO {
     private String introduce;
     private Boolean gender;
     private LocalDate birthday;
+    /** 收藏列表是否对他人公开 */
+    private Boolean collectPublic;
+    /** 赞过列表是否对他人公开 */
+    private Boolean likePublic;
 }

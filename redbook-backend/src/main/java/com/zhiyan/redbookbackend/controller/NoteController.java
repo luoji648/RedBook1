@@ -88,4 +88,12 @@ public class NoteController {
     public Result related(@PathVariable("id") Long id) {
         return noteService.related(id);
     }
+
+    @Operation(summary = "用户主页笔记列表（按可见性过滤）")
+    @GetMapping("/user/{userId}")
+    public Result userNotes(@PathVariable("userId") Long userId,
+                            @RequestParam(defaultValue = "1") long current,
+                            @RequestParam(defaultValue = "10") long size) {
+        return noteService.userNotes(userId, current, size);
+    }
 }

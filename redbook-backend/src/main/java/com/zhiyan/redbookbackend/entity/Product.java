@@ -17,6 +17,8 @@ public class Product {
     private Long priceCent;
     private Integer stock;
     private Integer status;
+    /** 上架卖家用户 id */
+    private Long sellerId;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

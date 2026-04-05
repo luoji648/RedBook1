@@ -21,6 +21,8 @@ const city = ref('')
 const introduce = ref('')
 const gender = ref(true)
 const birthday = ref('')
+const collectPublic = ref(false)
+const likePublic = ref(false)
 const oldPassword = ref('')
 const newPassword = ref('')
 
@@ -35,6 +37,8 @@ async function load() {
       introduce.value = info.introduce || ''
       gender.value = info.gender === true || info.gender === 1
       birthday.value = info.birthday || ''
+      collectPublic.value = info.collectPublic === true || info.collectPublic === 1
+      likePublic.value = info.likePublic === true || info.likePublic === 1
     }
   } catch {
     /* */
@@ -57,6 +61,8 @@ async function saveInfo() {
       introduce: introduce.value,
       gender: gender.value,
       birthday: birthday.value || null,
+      collectPublic: collectPublic.value,
+      likePublic: likePublic.value,
     })
     ElMessage.success('已保存扩展资料')
   } catch {
@@ -120,6 +126,14 @@ onMounted(load)
       <el-form-item label="生日">
         <el-input v-model="birthday" placeholder="YYYY-MM-DD" />
       </el-form-item>
+      <el-form-item label="公开收藏">
+        <el-switch v-model="collectPublic" active-text="公开" inactive-text="仅自己" />
+        <span class="tip">开启后，其他用户可在你的主页查看收藏</span>
+      </el-form-item>
+      <el-form-item label="公开赞过">
+        <el-switch v-model="likePublic" active-text="公开" inactive-text="仅自己" />
+        <span class="tip">开启后，其他用户可在你的主页查看赞过</span>
+      </el-form-item>
       <el-button type="primary" @click="saveInfo">保存扩展资料</el-button>
     </el-form>
 
@@ -150,5 +164,11 @@ h2 {
 }
 .full {
   width: 100%;
+}
+.tip {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #999;
 }
 </style>

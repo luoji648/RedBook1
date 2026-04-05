@@ -7,12 +7,16 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zhiyan.redbookbackend.dto.Result;
 import com.zhiyan.redbookbackend.dto.ScrollResult;
 import com.zhiyan.redbookbackend.dto.req.NoteSaveDTO;
+import com.zhiyan.redbookbackend.exception.BizException;
 import com.zhiyan.redbookbackend.entity.Note;
+import com.zhiyan.redbookbackend.entity.NoteCollect;
+import com.zhiyan.redbookbackend.entity.NoteLike;
 import com.zhiyan.redbookbackend.entity.NoteMedia;
 import com.zhiyan.redbookbackend.entity.NoteProduct;
+import com.zhiyan.redbookbackend.entity.Product;
 import com.zhiyan.redbookbackend.entity.User;
 import com.zhiyan.redbookbackend.entity.UserFollow;
-import com.zhiyan.redbookbackend.entity.NoteLike;
+import com.zhiyan.redbookbackend.mapper.NoteCollectMapper;
 import com.zhiyan.redbookbackend.mapper.NoteLikeMapper;
 import com.zhiyan.redbookbackend.mapper.NoteMapper;
 import com.zhiyan.redbookbackend.mapper.NoteMediaMapper;
@@ -20,6 +24,7 @@ import com.zhiyan.redbookbackend.mapper.NoteProductMapper;
 import com.zhiyan.redbookbackend.mapper.UserFollowMapper;
 import com.zhiyan.redbookbackend.mapper.UserMapper;
 import com.zhiyan.redbookbackend.service.INoteService;
+import com.zhiyan.redbookbackend.service.IProductService;
 import com.zhiyan.redbookbackend.util.RedisConstants;
 import com.zhiyan.redbookbackend.util.UserHolder;
 import jakarta.annotation.Resource;
@@ -48,6 +53,10 @@ public class NoteServiceImpl extends ServiceImpl<NoteMapper, Note> implements IN
     private UserMapper userMapper;
     @Resource
     private NoteLikeMapper noteLikeMapper;
+    @Resource
+    private NoteCollectMapper noteCollectMapper;
+    @Resource
+    private IProductService productService;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
@@ -112,9 +121,20 @@ public class NoteServiceImpl extends ServiceImpl<NoteMapper, Note> implements IN
                 noteMediaMapper.insert(m);
             }
         }
-        if (dto.getProductIds() != null) {
+        if (dto.getProductIds() != null && !dto.getProductIds().isEmpty()) {
+            List<Long> pids = dto.getProductIds().stream().distinct().collect(Collectors.toList());
+            for (Long pid : pids) {
+                Product p = productService.getById(pid);
+                if (p == null) {
+                    throw new BizException("关联商品不存在");
+                }
+                if (p.getStatus() == null || p.getStatus() != 1) {
+                    String name = p.getTitle() != null ? p.getTitle() : String.valueOf(pid);
+                    throw new BizException("仅可关联上架商品：" + name);
+                }
+            }
             int j = 0;
-            for (Long pid : dto.getProductIds()) {
+            for (Long pid : pids) {
                 NoteProduct np = new NoteProduct();
                 np.setNoteId(noteId);
                 np.setProductId(pid);
@@ -169,14 +189,20 @@ public class NoteServiceImpl extends ServiceImpl<NoteMapper, Note> implements IN
             return Result.fail("笔记不存在");
         }
         Long viewer = UserHolder.getUser() != null ? UserHolder.getUser().getId() : null;
-        if (!canView(note, viewer)) {
+        if (!canViewerAccessNote(note, viewer)) {
             return Result.fail("无权查看");
         }
         Map<String, Object> vo = buildNoteVo(note, viewer);
         return Result.ok(vo);
     }
 
-    private boolean canView(Note note, Long viewerId) {
+    @Override
+    public Map<String, Object> noteCardVo(Note note, Long viewerId) {
+        return buildNoteVo(note, viewerId);
+    }
+
+    @Override
+    public boolean canViewerAccessNote(Note note, Long viewerId) {
         if (note.getVisibility() == null || note.getVisibility() == 0) {
             return true;
         }
@@ -222,8 +248,13 @@ public class NoteServiceImpl extends ServiceImpl<NoteMapper, Note> implements IN
                 liked = lc != null && lc > 0;
             }
             vo.put("liked", liked);
+            Long cc = noteCollectMapper.selectCount(Wrappers.<NoteCollect>lambdaQuery()
+                    .eq(NoteCollect::getUserId, viewerId)
+                    .eq(NoteCollect::getNoteId, note.getId()));
+            vo.put("collected", cc != null && cc > 0);
         } else {
             vo.put("liked", false);
+            vo.put("collected", false);
         }
         return vo;
     }
@@ -303,5 +334,35 @@ public class NoteServiceImpl extends ServiceImpl<NoteMapper, Note> implements IN
                 .last("LIMIT 8"));
         Long viewer = UserHolder.getUser() != null ? UserHolder.getUser().getId() : null;
         return Result.ok(list.stream().map(n -> buildNoteVo(n, viewer)).collect(Collectors.toList()));
+    }
+
+    @Override
+    public Result userNotes(long profileUserId, long current, long size) {
+        Long viewer = UserHolder.getUser() != null ? UserHolder.getUser().getId() : null;
+        Page<Note> page = Page.of(current, size);
+        var w = Wrappers.<Note>lambdaQuery()
+                .eq(Note::getUserId, profileUserId)
+                .orderByDesc(Note::getCreateTime);
+        if (viewer == null || !viewer.equals(profileUserId)) {
+            w.eq(Note::getStatus, 1);
+            if (viewer == null) {
+                w.eq(Note::getVisibility, 0);
+            } else {
+                Long fc = userFollowMapper.selectCount(Wrappers.<UserFollow>lambdaQuery()
+                        .eq(UserFollow::getFollowerId, viewer)
+                        .eq(UserFollow::getFolloweeId, profileUserId));
+                boolean follows = fc != null && fc > 0;
+                if (follows) {
+                    w.in(Note::getVisibility, 0, 1);
+                } else {
+                    w.eq(Note::getVisibility, 0);
+                }
+            }
+        }
+        IPage<Note> p = page(page, w);
+        List<Map<String, Object>> vos = p.getRecords().stream()
+                .map(n -> buildNoteVo(n, viewer))
+                .collect(Collectors.toList());
+        return Result.ok(vos, p.getTotal());
     }
 }

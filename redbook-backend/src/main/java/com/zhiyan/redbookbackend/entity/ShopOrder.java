@@ -14,7 +14,13 @@ public class ShopOrder {
     private Long id;
     private Long userId;
     private Long totalCent;
-    /** 0 created 1 paid 2 cancelled */
+    /** 实付（分），从钱包扣减 */
+    private Long payCent;
+    /** 优惠券抵扣（分） */
+    private Long discountCent;
+    /** 使用的 tb_user_coupon.id */
+    private Long userCouponId;
+    /** 0 created 1 paid 2 cancelled 3 refunded */
     private Integer status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

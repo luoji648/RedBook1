@@ -2,6 +2,7 @@ package com.zhiyan.redbookbackend.controller;
 
 import com.zhiyan.redbookbackend.dto.Result;
 import com.zhiyan.redbookbackend.service.ICollectService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -28,5 +29,13 @@ public class CollectController {
     public Result my(@RequestParam(defaultValue = "1") long current,
                      @RequestParam(defaultValue = "20") long size) {
         return collectService.my(current, size);
+    }
+
+    @Operation(summary = "用户收藏列表（本人或对方已公开）")
+    @GetMapping("/user/{userId}")
+    public Result userCollects(@PathVariable Long userId,
+                               @RequestParam(defaultValue = "1") long current,
+                               @RequestParam(defaultValue = "20") long size) {
+        return collectService.userCollects(userId, current, size);
     }
 }

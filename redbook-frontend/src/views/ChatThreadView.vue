@@ -1,7 +1,11 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { chatMessages, chatSend, fetchMe } from '../api'
+import { ArrowLeft } from '@element-plus/icons-vue'
+import { chatMessages, chatSend, fetchMe, userPublic } from '../api'
+
+const DEFAULT_AVATAR =
+  'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,6 +19,9 @@ const peerId = computed(() => {
 const myId = ref(null)
 const msgs = ref([])
 const text = ref('')
+const peerProfile = ref(null)
+
+const peerUser = computed(() => peerProfile.value?.user)
 
 async function loadMe() {
   try {
@@ -22,6 +29,19 @@ async function loadMe() {
     myId.value = data?.user?.id
   } catch {
     myId.value = null
+  }
+}
+
+async function loadPeer() {
+  if (peerId.value == null) {
+    peerProfile.value = null
+    return
+  }
+  try {
+    const { data } = await userPublic(peerId.value)
+    peerProfile.value = data
+  } catch {
+    peerProfile.value = null
   }
 }
 
@@ -33,6 +53,11 @@ async function loadMsgs() {
   } catch {
     msgs.value = []
   }
+}
+
+function goPeerProfile() {
+  if (peerId.value == null) return
+  router.push({ name: 'user-profile', params: { userId: String(peerId.value) } })
 }
 
 async function send() {
@@ -50,8 +75,14 @@ async function send() {
   }
 }
 
+watch([threadId, peerId], async () => {
+  await loadPeer()
+  await loadMsgs()
+})
+
 onMounted(async () => {
   await loadMe()
+  await loadPeer()
   await loadMsgs()
 })
 </script>
@@ -59,8 +90,20 @@ onMounted(async () => {
 <template>
   <div class="thread">
     <header class="bar">
-      <el-button text @click="router.push({ name: 'chat' })">返回</el-button>
-      <span>会话 {{ threadId }}</span>
+      <el-button text circle title="返回" class="back-btn" @click="router.push({ name: 'chat' })">
+        <el-icon :size="22"><ArrowLeft /></el-icon>
+      </el-button>
+      <button
+        v-if="peerId != null"
+        type="button"
+        class="peer-head"
+        title="查看主页"
+        @click="goPeerProfile"
+      >
+        <img class="peer-av" :src="peerUser?.icon || DEFAULT_AVATAR" alt="" />
+        <span class="peer-name">{{ peerUser?.nickName || `用户 ${peerId}` }}</span>
+      </button>
+      <span v-else class="title-fallback">会话 {{ threadId }}</span>
     </header>
     <div class="msgs">
       <div
@@ -98,6 +141,49 @@ onMounted(async () => {
   gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid #eee;
+}
+.back-btn {
+  margin-left: -4px;
+  flex-shrink: 0;
+  color: #333;
+}
+.peer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.peer-head:hover {
+  background: #f7f7f7;
+}
+.peer-av {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.peer-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.title-fallback {
+  font-size: 15px;
+  color: #333;
 }
 .msgs {
   flex: 1;

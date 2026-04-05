@@ -1,10 +1,23 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, watch, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { saveNote, ossPresign, productList } from '../api'
+import { saveNote, ossPresign, productList, noteDetail, noteMy } from '../api'
 
+const route = useRoute()
 const router = useRouter()
+
+const editingId = ref(null)
+const editingIsDraft = ref(false)
+
+const draftDialogVisible = ref(false)
+const draftLoading = ref(false)
+const draftList = ref([])
+
+const pageTitle = computed(() => {
+  if (editingId.value == null) return '发布笔记'
+  return editingIsDraft.value ? '编辑草稿' : '编辑笔记'
+})
 
 const title = ref('')
 const content = ref('')
@@ -51,9 +64,91 @@ async function handleUpload({ file, onError }) {
   }
 }
 
+function resetForm() {
+  title.value = ''
+  content.value = ''
+  visibility.value = 0
+  type.value = 0
+  publish.value = true
+  mediaUrls.value = []
+  productIds.value = []
+}
+
+async function loadForEdit() {
+  const qid = route.query.id
+  if (!qid) {
+    editingId.value = null
+    editingIsDraft.value = false
+    resetForm()
+    return
+  }
+  const id = Number(qid)
+  if (Number.isNaN(id)) {
+    editingId.value = null
+    editingIsDraft.value = false
+    return
+  }
+  editingId.value = id
+  try {
+    const { data } = await noteDetail(id)
+    const n = data.note
+    editingIsDraft.value = n.status === 0
+    title.value = n.title || ''
+    content.value = n.content || ''
+    type.value = n.type ?? 0
+    visibility.value = n.visibility ?? 0
+    publish.value = n.status === 1
+    mediaUrls.value = (data.media || []).map((m) => m.url).filter(Boolean)
+    productIds.value = (data.noteProducts || []).map((np) => np.productId)
+  } catch {
+    editingId.value = null
+    editingIsDraft.value = false
+    resetForm()
+  }
+}
+
+const DRAFT_FETCH_PAGE_SIZE = 30
+const DRAFT_FETCH_MAX_PAGES = 25
+
+async function openDraftBox() {
+  draftDialogVisible.value = true
+  draftLoading.value = true
+  draftList.value = []
+  try {
+    const out = []
+    let current = 1
+    let total = 0
+    do {
+      const { data, total: t } = await noteMy({ current, size: DRAFT_FETCH_PAGE_SIZE })
+      total = Number(t) || 0
+      const batch = data || []
+      for (const n of batch) {
+        if (n.status === 0) out.push(n)
+      }
+      current += 1
+      if (!batch.length) break
+    } while (current <= Math.ceil(total / DRAFT_FETCH_PAGE_SIZE) && current <= DRAFT_FETCH_MAX_PAGES)
+    draftList.value = out
+  } catch {
+    draftList.value = []
+  } finally {
+    draftLoading.value = false
+  }
+}
+
+function pickDraft(row) {
+  if (!row?.id) return
+  draftDialogVisible.value = false
+  router.replace({ name: 'publish', query: { id: String(row.id) } })
+}
+
+function clearDraftEdit() {
+  router.replace({ name: 'publish', query: {} })
+}
+
 async function submit() {
   try {
-    await saveNote({
+    const body = {
       title: title.value,
       content: content.value,
       type: type.value,
@@ -61,7 +156,11 @@ async function submit() {
       mediaUrls: mediaUrls.value,
       productIds: productIds.value,
       publish: publish.value,
-    })
+    }
+    if (editingId.value != null) {
+      body.id = editingId.value
+    }
+    await saveNote(body)
     ElMessage.success(publish.value ? '发布成功' : '已保存草稿')
     router.push({ name: 'me' })
   } catch {
@@ -73,12 +172,46 @@ function removeMedia(i) {
   mediaUrls.value.splice(i, 1)
 }
 
-onMounted(loadProducts)
+watch(
+  () => route.query.id,
+  () => {
+    loadForEdit()
+  },
+  { immediate: false }
+)
+
+onMounted(() => {
+  loadProducts()
+  loadForEdit()
+})
 </script>
 
 <template>
   <div class="pub">
-    <h2>发布笔记</h2>
+    <div class="pub-head">
+      <h2>{{ pageTitle }}</h2>
+      <div class="pub-actions">
+        <el-button v-if="editingId != null" plain @click="clearDraftEdit">新建笔记</el-button>
+        <el-button type="primary" plain @click="openDraftBox">草稿箱</el-button>
+      </div>
+    </div>
+    <el-dialog v-model="draftDialogVisible" title="草稿箱" width="min(520px, 92vw)" destroy-on-close>
+      <div v-loading="draftLoading" class="draft-body">
+        <el-empty v-if="!draftLoading && draftList.length === 0" description="暂无草稿" />
+        <el-table v-else-if="draftList.length" :data="draftList" size="small" @row-click="pickDraft">
+          <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ row.title?.trim() ? row.title : '（无标题）' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" align="right">
+            <template #default="{ row }">
+              <el-button type="primary" link @click.stop="pickDraft(row)">继续编辑</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
     <el-form label-position="top">
       <el-form-item label="标题">
         <el-input v-model="title" placeholder="填写标题" />
@@ -139,9 +272,25 @@ onMounted(loadProducts)
   border-radius: 12px;
   padding: 16px;
 }
-h2 {
-  margin: 0 0 16px;
+.pub-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.pub-head h2 {
+  margin: 0;
   font-size: 18px;
+}
+.pub-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.draft-body {
+  min-height: 120px;
 }
 .previews {
   display: flex;

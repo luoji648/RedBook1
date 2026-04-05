@@ -5,6 +5,7 @@ import com.zhiyan.redbookbackend.dto.req.CommentAddDTO;
 import com.zhiyan.redbookbackend.service.ICommentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,7 +25,14 @@ public class CommentController {
 
     @Operation(summary = "评论树（公开）")
     @GetMapping("/tree/{noteId}")
-    public Result tree(@PathVariable Long noteId) {
+    public Result tree(@PathVariable Long noteId, HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
         return commentService.tree(noteId);
+    }
+
+    @Operation(summary = "删除本人的评论")
+    @DeleteMapping("/{commentId}")
+    public Result delete(@PathVariable Long commentId) {
+        return commentService.delete(commentId);
     }
 }

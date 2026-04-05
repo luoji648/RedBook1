@@ -1,11 +1,40 @@
 <script setup>
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { House, StarFilled, Plus, ChatDotRound, User, ShoppingCart } from '@element-plus/icons-vue'
+import {
+  House,
+  Shop,
+  Plus,
+  ChatDotRound,
+  User,
+  ShoppingCart,
+  ArrowLeft,
+} from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const r = useRoute()
 const auth = useAuthStore()
+
+const needsTopBack = computed(() =>
+  [
+    'settings',
+    'publish',
+    'cart',
+    'orders',
+    'notice-category',
+    'chat-thread',
+    'market-coupons',
+    'market-wallet',
+    'product-save',
+    'product-footprint',
+    'daily-sign',
+  ].includes(String(r.name)),
+)
+
+function goBack() {
+  router.back()
+}
 
 function go(name) {
   router.push({ name })
@@ -13,6 +42,9 @@ function go(name) {
 
 function active(name) {
   if (name === 'discover') return r.name === 'discover'
+  if (name === 'market') return r.name === 'market'
+  if (name === 'chat')
+    return r.name === 'chat' || r.name === 'chat-thread' || r.name === 'notice-category'
   return r.name === name
 }
 </script>
@@ -20,7 +52,19 @@ function active(name) {
 <template>
   <div class="layout">
     <header class="top">
-      <span class="logo" @click="go('discover')">RedBook</span>
+      <div class="top-left">
+        <el-button
+          v-if="needsTopBack"
+          text
+          circle
+          class="back-btn"
+          title="返回"
+          @click="goBack"
+        >
+          <el-icon :size="22"><ArrowLeft /></el-icon>
+        </el-button>
+        <span class="logo" @click="go('discover')">RedBook</span>
+      </div>
       <div class="actions">
         <el-button
           v-if="auth.isLogin"
@@ -43,9 +87,9 @@ function active(name) {
         <el-icon :size="22"><House /></el-icon>
         <span>发现</span>
       </div>
-      <div :class="['tab', { on: active('follow') }]" @click="go('follow')">
-        <el-icon :size="22"><StarFilled /></el-icon>
-        <span>关注</span>
+      <div :class="['tab', { on: active('market') }]" @click="go('market')">
+        <el-icon :size="22"><Shop /></el-icon>
+        <span>集市</span>
       </div>
       <div class="tab mid" @click="go('publish')">
         <div class="fab">
@@ -84,6 +128,15 @@ function active(name) {
   position: sticky;
   top: 0;
   z-index: 20;
+}
+.top-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.back-btn {
+  margin-left: -6px;
+  color: #333;
 }
 .logo {
   font-weight: 700;

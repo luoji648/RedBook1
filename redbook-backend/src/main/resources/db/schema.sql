@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS tb_user_info (
     birthday DATE DEFAULT NULL,
     credits INT NOT NULL DEFAULT 0,
     level TINYINT NOT NULL DEFAULT 0,
+    collect_public TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1=公开收藏列表',
+    like_public TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1=公开赞过列表',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_user_info_user FOREIGN KEY (user_id) REFERENCES tb_user(id) ON DELETE CASCADE
@@ -169,8 +171,11 @@ CREATE TABLE IF NOT EXISTS tb_product (
     price_cent BIGINT NOT NULL DEFAULT 0,
     stock INT NOT NULL DEFAULT 0,
     status TINYINT NOT NULL DEFAULT 1,
+    seller_id BIGINT NULL COMMENT '上架卖家用户 id',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_product_seller (seller_id),
+    CONSTRAINT fk_product_seller FOREIGN KEY (seller_id) REFERENCES tb_user(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS tb_note_product (
@@ -199,7 +204,10 @@ CREATE TABLE IF NOT EXISTS tb_order (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     total_cent BIGINT NOT NULL DEFAULT 0,
-    status TINYINT NOT NULL DEFAULT 0 COMMENT '0 created 1 paid 2 cancelled',
+    pay_cent BIGINT NULL COMMENT '实付（分，从钱包扣）',
+    discount_cent BIGINT NOT NULL DEFAULT 0 COMMENT '优惠券抵扣（分）',
+    user_coupon_id BIGINT NULL COMMENT '使用的用户券 id',
+    status TINYINT NOT NULL DEFAULT 0 COMMENT '0 created 1 paid 2 cancelled 3 refunded',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_order_user (user_id),
@@ -214,4 +222,57 @@ CREATE TABLE IF NOT EXISTS tb_order_item (
     price_cent BIGINT NOT NULL,
     CONSTRAINT fk_oi_order FOREIGN KEY (order_id) REFERENCES tb_order(id) ON DELETE CASCADE,
     CONSTRAINT fk_oi_product FOREIGN KEY (product_id) REFERENCES tb_product(id)
+) ENGINE=InnoDB;
+
+-- ---------- user coupon (market) ----------
+CREATE TABLE IF NOT EXISTS tb_user_coupon (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    product_id BIGINT NULL COMMENT '适用商品（关注卖家券等）',
+    title VARCHAR(128) NOT NULL DEFAULT '',
+    discount_cent BIGINT NOT NULL DEFAULT 0 COMMENT '满减金额（分）',
+    min_order_cent BIGINT NOT NULL DEFAULT 0 COMMENT '订单满额门槛（分）',
+    status TINYINT NOT NULL DEFAULT 0 COMMENT '0 未使用 1 已使用 2 已过期',
+    expire_time DATETIME NOT NULL,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_uc_user_status_exp (user_id, status, expire_time),
+    INDEX idx_uc_product (product_id),
+    INDEX idx_uc_user_product (user_id, product_id),
+    CONSTRAINT fk_uc_user FOREIGN KEY (user_id) REFERENCES tb_user(id) ON DELETE CASCADE,
+    CONSTRAINT fk_uc_product FOREIGN KEY (product_id) REFERENCES tb_product(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ---------- product footprint (market) ----------
+CREATE TABLE IF NOT EXISTS tb_product_footprint (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    product_id BIGINT NOT NULL,
+    viewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_fp_user_product (user_id, product_id),
+    INDEX idx_fp_user_viewed (user_id, viewed_at DESC),
+    CONSTRAINT fk_fp_user FOREIGN KEY (user_id) REFERENCES tb_user(id) ON DELETE CASCADE,
+    CONSTRAINT fk_fp_product FOREIGN KEY (product_id) REFERENCES tb_product(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ---------- wallet / alipay recharge ----------
+CREATE TABLE IF NOT EXISTS tb_user_wallet (
+    user_id BIGINT PRIMARY KEY,
+    balance_cent BIGINT NOT NULL DEFAULT 0,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_wallet_user FOREIGN KEY (user_id) REFERENCES tb_user(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tb_wallet_recharge (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    out_trade_no VARCHAR(64) NOT NULL,
+    amount_cent BIGINT NOT NULL,
+    alipay_trade_no VARCHAR(64) DEFAULT NULL,
+    status TINYINT NOT NULL DEFAULT 0 COMMENT '0 待支付 1 成功 2 关闭',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    pay_time DATETIME DEFAULT NULL,
+    UNIQUE KEY uk_wr_out_trade (out_trade_no),
+    INDEX idx_wr_user (user_id),
+    CONSTRAINT fk_wr_user FOREIGN KEY (user_id) REFERENCES tb_user(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

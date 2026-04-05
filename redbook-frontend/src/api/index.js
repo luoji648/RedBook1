@@ -10,12 +10,20 @@ export function login(body) {
   return post('/user/login', body)
 }
 
+export function loginByPassword(body) {
+  return post('/user/login/password', body)
+}
+
 export function logout() {
   return post('/user/logout')
 }
 
 export function fetchMe() {
   return get('/user/me')
+}
+
+export function userPublic(userId) {
+  return get(`/user/public/${userId}`)
 }
 
 export function fetchUserInfo() {
@@ -74,12 +82,20 @@ export function noteRelated(id) {
   return get(`/note/related/${id}`)
 }
 
+export function noteByUser(userId, params) {
+  return get(`/note/user/${userId}`, params)
+}
+
 export function commentTree(noteId) {
-  return get(`/note/comment/tree/${noteId}`)
+  return get(`/note/comment/tree/${noteId}`, { _t: Date.now() })
 }
 
 export function commentAdd(noteId, body) {
   return post(`/note/comment/${noteId}`, body)
+}
+
+export function commentDelete(commentId) {
+  return del(`/note/comment/${commentId}`)
 }
 
 export function likeNote(noteId) {
@@ -94,6 +110,10 @@ export function likeMy(params) {
   return get('/like/my', params)
 }
 
+export function likeByUser(userId, params) {
+  return get(`/like/user/${userId}`, params)
+}
+
 export function collectNote(noteId) {
   return post(`/collect/${noteId}`)
 }
@@ -104,6 +124,10 @@ export function uncollectNote(noteId) {
 
 export function collectMy(params) {
   return get('/collect/my', params)
+}
+
+export function collectByUser(userId, params) {
+  return get(`/collect/user/${userId}`, params)
 }
 
 export function followUser(userId) {
@@ -141,6 +165,11 @@ export function productGet(id) {
   return get(`/product/${id}`)
 }
 
+/** 新建或更新商品（需登录），body 见 ProductSaveDTO */
+export function productSave(body) {
+  return post('/product/save', body)
+}
+
 export function cartAdd(productId, quantity) {
   return postForm('/cart/add', { productId, quantity: quantity ?? 1 })
 }
@@ -157,12 +186,65 @@ export function cartRemove(cartId) {
   return del(`/cart/${cartId}`)
 }
 
-export function orderCreate() {
-  return post('/order/create')
+/** body 可选 { userCouponId } */
+export function orderCreate(body) {
+  return post('/order/create', body ?? {})
+}
+
+/** 立即支付页预览：关注提示、可领券、实付试算；fallbackSellerUserId=笔记作者（商品无 seller_id 时） */
+export function orderDirectPreview(productId, quantity = 1, fallbackSellerUserId) {
+  const params = { productId, quantity }
+  if (fallbackSellerUserId != null && fallbackSellerUserId !== '') {
+    params.fallbackSellerUserId = fallbackSellerUserId
+  }
+  return get('/order/direct-preview', params)
+}
+
+/** body: { productId, quantity, userCouponId? } */
+export function orderCreateDirect(body) {
+  return post('/order/create-direct', body)
 }
 
 export function orderMy(params) {
   return get('/order/my', params)
+}
+
+export function orderDetail(orderId) {
+  return get(`/order/detail/${orderId}`)
+}
+
+/** body: { payPassword }，模拟密码固定为 123456 */
+export function orderPay(orderId, body) {
+  return post(`/order/pay/${orderId}`, body ?? { payPassword: '123456' })
+}
+
+export function orderRefund(orderId) {
+  return post(`/order/refund/${orderId}`)
+}
+
+export function orderClose(orderId) {
+  return post(`/order/${orderId}/close`, {})
+}
+
+export function orderDeleteRecord(orderId) {
+  return del(`/order/${orderId}`)
+}
+
+export function walletBalance() {
+  return get('/wallet/balance')
+}
+
+export function walletRechargeAlipay(body) {
+  return post('/wallet/recharge/alipay', body)
+}
+
+export function couponMy(params) {
+  return get('/coupon/my', params)
+}
+
+/** body: { productId } — 需已关注卖家 */
+export function couponClaimFollow(body) {
+  return post('/coupon/claim-follow', body)
 }
 
 export function chatThreads(params) {
@@ -175,4 +257,8 @@ export function chatMessages(threadId, params) {
 
 export function chatSend(toUserId, content) {
   return postForm('/chat/send', { toUserId, content })
+}
+
+export function noticeInteractions(params) {
+  return get('/notice/interactions', params)
 }

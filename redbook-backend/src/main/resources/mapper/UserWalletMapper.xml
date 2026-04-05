@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhiyan.redbookbackend.mapper.UserWalletMapper">
+
+    <!-- 原子入账：无钱包行则插入并写入首笔余额，有则累加（避免先 insert 再 update 两步边界下 UPDATE 影响 0 行） -->
+    <insert id="addBalance">
+        INSERT INTO tb_user_wallet (user_id, balance_cent, create_time, update_time)
+        VALUES (#{userId}, #{amountCent}, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE balance_cent = IFNULL(balance_cent, 0) + #{amountCent},
+                                update_time    = NOW()
+    </insert>
+
+    <update id="deductBalance">
+        UPDATE tb_user_wallet
+        SET balance_cent = balance_cent - #{amountCent},
+            update_time    = NOW()
+        WHERE user_id = #{userId}
+          AND balance_cent &gt;= #{amountCent}
+    </update>
+</mapper>

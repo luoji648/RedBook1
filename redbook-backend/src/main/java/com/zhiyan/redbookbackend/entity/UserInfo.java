@@ -82,6 +82,18 @@ public class UserInfo implements Serializable {
     private Integer level;
 
     /**
+     * 是否对他人公开「收藏」列表
+     */
+    @Schema(description = "收藏列表是否公开", example = "false")
+    private Boolean collectPublic;
+
+    /**
+     * 是否对他人公开「赞过」列表
+     */
+    @Schema(description = "赞过列表是否公开", example = "false")
+    private Boolean likePublic;
+
+    /**
      * 创建时间
      */
     @Schema(description = "创建时间", example = "2024-01-01T10:00:00")

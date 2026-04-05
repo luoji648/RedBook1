@@ -20,9 +20,13 @@ const routes = [
       },
       {
         path: 'follow',
-        name: 'follow',
-        component: () => import('../views/FollowFeedView.vue'),
-        meta: { title: '关注', requiresAuth: true },
+        redirect: { name: 'discover', query: { tab: 'follow' } },
+      },
+      {
+        path: 'market',
+        name: 'market',
+        component: () => import('../views/MarketView.vue'),
+        meta: { title: '集市' },
       },
       {
         path: 'publish',
@@ -37,6 +41,12 @@ const routes = [
         meta: { title: '消息', requiresAuth: true },
       },
       {
+        path: 'chat/notices/:slug',
+        name: 'notice-category',
+        component: () => import('../views/NoticeCategoryView.vue'),
+        meta: { title: '通知', requiresAuth: true },
+      },
+      {
         path: 'chat/:threadId',
         name: 'chat-thread',
         component: () => import('../views/ChatThreadView.vue'),
@@ -47,6 +57,18 @@ const routes = [
         name: 'me',
         component: () => import('../views/ProfileView.vue'),
         meta: { title: '我', requiresAuth: true },
+      },
+      {
+        path: 'me/sign',
+        name: 'daily-sign',
+        component: () => import('../views/DailySignView.vue'),
+        meta: { title: '每日签到', requiresAuth: true },
+      },
+      {
+        path: 'user/:userId',
+        name: 'user-profile',
+        component: () => import('../views/UserProfileView.vue'),
+        meta: { title: '用户主页' },
       },
       {
         path: 'settings',
@@ -65,6 +87,36 @@ const routes = [
         name: 'orders',
         component: () => import('../views/OrdersView.vue'),
         meta: { title: '我的订单', requiresAuth: true },
+      },
+      {
+        path: 'orders/detail/:orderId',
+        name: 'order-detail',
+        component: () => import('../views/OrderDetailView.vue'),
+        meta: { title: '订单详情', requiresAuth: true },
+      },
+      {
+        path: 'market/coupons',
+        name: 'market-coupons',
+        component: () => import('../views/CouponsView.vue'),
+        meta: { title: '优惠券', requiresAuth: true },
+      },
+      {
+        path: 'market/wallet',
+        name: 'market-wallet',
+        component: () => import('../views/WalletView.vue'),
+        meta: { title: '我的钱包', requiresAuth: true },
+      },
+      {
+        path: 'market/footprint',
+        name: 'product-footprint',
+        component: () => import('../views/ProductFootprintView.vue'),
+        meta: { title: '商品足迹' },
+      },
+      {
+        path: 'market/product/save',
+        name: 'product-save',
+        component: () => import('../views/ProductSaveView.vue'),
+        meta: { title: '发布商品', requiresAuth: true },
       },
     ],
   },
@@ -90,8 +142,19 @@ const router = createRouter({
   },
 })
 
+const noticeSlugTitles = {
+  'like-collect': '赞和收藏',
+  follow: '新增关注',
+  comment: '评论和@',
+}
+
 router.beforeEach((to, _from, next) => {
-  document.title = to.meta.title ? `${to.meta.title} · RedBook` : 'RedBook'
+  if (to.name === 'notice-category') {
+    const sub = noticeSlugTitles[String(to.params.slug)] || '通知'
+    document.title = `${sub} · RedBook`
+  } else {
+    document.title = to.meta.title ? `${to.meta.title} · RedBook` : 'RedBook'
+  }
   if (to.meta.requiresAuth) {
     const auth = useAuthStore()
     if (!auth.token) {

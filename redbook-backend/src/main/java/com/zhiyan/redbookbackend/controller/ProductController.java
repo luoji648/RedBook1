@@ -3,9 +3,12 @@ package com.zhiyan.redbookbackend.controller;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhiyan.redbookbackend.dto.Result;
+import com.zhiyan.redbookbackend.dto.req.ProductSaveDTO;
 import com.zhiyan.redbookbackend.entity.Product;
 import com.zhiyan.redbookbackend.service.IProductService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,13 +37,16 @@ public class ProductController {
         return Result.ok(product);
     }
 
+    @Operation(summary = "保存商品", description = "新建或更新商品；封面请先通过 OSS 预签名上传得到 URL")
+    @PostMapping("/save")
+    public Result save(@Valid @RequestBody ProductSaveDTO dto) {
+        return productService.saveFromDto(dto);
+    }
+
+    /** 与 POST /product/save 相同，保留兼容旧路径 */
+    @Operation(summary = "保存商品（兼容路径）")
     @PostMapping("/admin")
-    public Result adminSave(@RequestBody Product product) {
-        if (product.getId() == null) {
-            product.setCreateTime(java.time.LocalDateTime.now());
-        }
-        product.setUpdateTime(java.time.LocalDateTime.now());
-        productService.saveOrUpdate(product);
-        return Result.ok(product.getId());
+    public Result adminSave(@Valid @RequestBody ProductSaveDTO dto) {
+        return productService.saveFromDto(dto);
     }
 }

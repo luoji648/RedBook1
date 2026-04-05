@@ -1,10 +1,50 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { cartMy, productGet, cartUpdate, cartRemove, orderCreate } from '../api'
+import { useRouter } from 'vue-router'
+import { cartMy, productGet, cartUpdate, cartRemove, orderCreate, couponMy } from '../api'
+import PayPasswordDialog from '../components/PayPasswordDialog.vue'
+
+const router = useRouter()
 
 const lines = ref([])
 const loading = ref(false)
+const coupons = ref([])
+const selectedCouponId = ref(null)
+const pwdVisible = ref(false)
+const pendingOrderId = ref(null)
+
+const totalCent = computed(() =>
+  lines.value.reduce((s, row) => {
+    const p = row.product?.priceCent ?? 0
+    const q = row.cart.quantity ?? 0
+    return s + p * q
+  }, 0)
+)
+
+/** 与后端 OrderServiceImpl.computeCouponDiscount 一致：绑定商品的券仅看该商品行小计与件数 */
+function cartMatchForCoupon(c) {
+  const min = c.minOrderCent ?? 0
+  const pid = c.productId
+  if (pid == null) {
+    return { matchSub: totalCent.value, matchQty: 0, minOk: totalCent.value >= min }
+  }
+  let matchSub = 0
+  let matchQty = 0
+  for (const row of lines.value) {
+    if (row.product?.id === pid) {
+      const p = row.product?.priceCent ?? 0
+      const q = row.cart.quantity ?? 0
+      matchSub += p * q
+      matchQty += q
+    }
+  }
+  return { matchSub, matchQty, minOk: matchSub > 0 && matchSub >= min }
+}
+
+const usableCoupons = computed(() =>
+  (coupons.value || []).filter((c) => cartMatchForCoupon(c).minOk)
+)
 
 async function load() {
   loading.value = true
@@ -28,6 +68,15 @@ async function load() {
   }
 }
 
+async function loadCoupons() {
+  try {
+    const { data } = await couponMy({ current: 1, size: 50 })
+    coupons.value = data || []
+  } catch {
+    coupons.value = []
+  }
+}
+
 function yuan(cent) {
   return ((cent || 0) / 100).toFixed(2)
 }
@@ -36,9 +85,16 @@ async function changeQty(row, q) {
   try {
     await cartUpdate(row.cart.id, q)
     row.cart.quantity = q
+    syncCouponSelection()
   } catch {
     /* */
   }
+}
+
+function syncCouponSelection() {
+  if (selectedCouponId.value == null) return
+  const ok = usableCoupons.value.some((c) => c.id === selectedCouponId.value)
+  if (!ok) selectedCouponId.value = null
 }
 
 async function remove(row) {
@@ -46,25 +102,67 @@ async function remove(row) {
     await ElMessageBox.confirm('从购物车移除？', '提示')
     await cartRemove(row.cart.id)
     lines.value = lines.value.filter((x) => x.cart.id !== row.cart.id)
+    syncCouponSelection()
     ElMessage.success('已移除')
   } catch {
     /* */
   }
 }
 
+const estimatedDiscount = computed(() => {
+  if (selectedCouponId.value == null) return 0
+  const c = coupons.value.find((x) => x.id === selectedCouponId.value)
+  if (!c) return 0
+  const unitDisc = c.discountCent ?? 0
+  const pid = c.productId
+  if (pid == null) {
+    const min = c.minOrderCent ?? 0
+    if (totalCent.value < min) return 0
+    return Math.min(unitDisc, totalCent.value)
+  }
+  const { matchSub, matchQty, minOk } = cartMatchForCoupon(c)
+  if (!minOk) return 0
+  return Math.min(unitDisc * matchQty, matchSub)
+})
+
+const estimatedPay = computed(() => Math.max(0, totalCent.value - estimatedDiscount.value))
+
 async function checkout() {
   if (!lines.value.length) return
   try {
-    await ElMessageBox.confirm('使用购物车商品下单？', '下单')
-    const { data: orderId } = await orderCreate()
-    ElMessage.success('下单成功，订单号 ' + orderId)
+    await ElMessageBox.confirm('将生成待支付订单，确认后在下一步输入支付密码完成扣款。', '结算下单')
+    const body = {}
+    if (selectedCouponId.value != null) {
+      body.userCouponId = selectedCouponId.value
+    }
+    const { data: orderId } = await orderCreate(body)
+    pendingOrderId.value = orderId
+    pwdVisible.value = true
     lines.value = []
+    selectedCouponId.value = null
+    await loadCoupons()
+    await load()
   } catch {
     /* */
   }
 }
 
-onMounted(load)
+function onCartPwdPaid(orderId) {
+  pendingOrderId.value = null
+  ElMessage.success('支付成功，订单号 ' + orderId)
+}
+
+function onCartPwdCancelled(orderId) {
+  pendingOrderId.value = null
+  ElMessage.warning('订单已生成，请在 15 分钟内到「我的订单」完成支付')
+  if (orderId != null && orderId !== '') {
+    router.push({ name: 'order-detail', params: { orderId: String(orderId) } })
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([load(), loadCoupons()])
+})
 </script>
 
 <template>
@@ -87,8 +185,44 @@ onMounted(load)
         </div>
         <el-button type="danger" text @click="remove(row)">删除</el-button>
       </div>
+
+      <div class="sum">
+        <div>商品合计：<b>¥{{ yuan(totalCent) }}</b></div>
+        <div v-if="usableCoupons.length" class="coupon-row">
+          <span class="lbl">优惠券</span>
+          <el-select
+            v-model="selectedCouponId"
+            clearable
+            placeholder="不使用优惠券"
+            class="sel"
+          >
+            <el-option
+              v-for="c in usableCoupons"
+              :key="c.id"
+              :label="`${c.title || '优惠券'} · 减¥${yuan(c.discountCent)}（满¥${yuan(c.minOrderCent)}）`"
+              :value="c.id"
+            />
+          </el-select>
+        </div>
+        <div v-else-if="coupons.length" class="muted">暂无满足门槛的可用优惠券</div>
+        <div v-if="selectedCouponId != null" class="est">
+          预计优惠 ¥{{ yuan(estimatedDiscount) }}，钱包实付
+          <b class="pay">¥{{ yuan(estimatedPay) }}</b>
+        </div>
+        <div v-else class="est">
+          钱包实付 <b class="pay">¥{{ yuan(totalCent) }}</b>
+        </div>
+      </div>
+
       <el-button type="primary" class="full" @click="checkout">结算下单</el-button>
     </div>
+
+    <PayPasswordDialog
+      v-model="pwdVisible"
+      :order-id="pendingOrderId"
+      @paid="onCartPwdPaid"
+      @cancelled="onCartPwdCancelled"
+    />
   </div>
 </template>
 
@@ -128,6 +262,40 @@ h2 {
 .p {
   color: #ff2442;
   margin: 4px 0;
+}
+.sum {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.coupon-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.coupon-row .lbl {
+  white-space: nowrap;
+  color: #666;
+}
+.sel {
+  flex: 1;
+  min-width: 0;
+}
+.muted {
+  color: #999;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.est {
+  margin-top: 8px;
+  color: #666;
+}
+.pay {
+  color: #ff2442;
+  font-size: 16px;
 }
 .full {
   width: 100%;

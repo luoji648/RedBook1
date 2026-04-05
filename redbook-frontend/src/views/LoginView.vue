@@ -3,14 +3,16 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
-import { sendCode, login } from '../api'
+import { sendCode, login, loginByPassword } from '../api'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
+const mode = ref('code')
 const phone = ref('')
 const code = ref('')
+const password = ref('')
 const sending = ref(false)
 const sec = ref(0)
 let timer = null
@@ -39,7 +41,7 @@ async function onSend() {
   }
 }
 
-async function onSubmit() {
+async function onSubmitCode() {
   if (!/^1\d{10}$/.test(phone.value)) {
     ElMessage.warning('请输入正确手机号')
     return
@@ -58,21 +60,61 @@ async function onSubmit() {
     /* */
   }
 }
+
+async function onSubmitPassword() {
+  if (!/^1\d{10}$/.test(phone.value)) {
+    ElMessage.warning('请输入正确手机号')
+    return
+  }
+  if (!password.value) {
+    ElMessage.warning('请输入密码')
+    return
+  }
+  try {
+    const { data } = await loginByPassword({
+      phone: phone.value,
+      password: password.value,
+    })
+    auth.setToken(data)
+    ElMessage.success('登录成功')
+    const red = route.query.redirect
+    router.replace(typeof red === 'string' && red ? red : '/')
+  } catch {
+    /* */
+  }
+}
 </script>
 
 <template>
   <div class="page">
     <div class="box">
-      <h1>手机号登录</h1>
-      <p class="tip">验证码请在后端日志中查看（模拟短信）</p>
-      <el-input v-model="phone" placeholder="手机号" maxlength="11" />
-      <div class="row">
-        <el-input v-model="code" placeholder="验证码" maxlength="6" />
-        <el-button :disabled="sec > 0 || sending" @click="onSend">
-          {{ sec > 0 ? `${sec}s` : '获取验证码' }}
-        </el-button>
-      </div>
-      <el-button type="primary" class="full" @click="onSubmit">登录</el-button>
+      <h1>登录</h1>
+      <el-tabs v-model="mode" class="tabs">
+        <el-tab-pane label="验证码登录" name="code">
+          <p class="tip">验证码请在后端日志中查看（模拟短信）</p>
+          <el-input v-model="phone" placeholder="手机号" maxlength="11" />
+          <div class="row">
+            <el-input v-model="code" placeholder="验证码" maxlength="6" />
+            <el-button :disabled="sec > 0 || sending" @click="onSend">
+              {{ sec > 0 ? `${sec}s` : '获取验证码' }}
+            </el-button>
+          </div>
+          <el-button type="primary" class="full" @click="onSubmitCode">登录</el-button>
+        </el-tab-pane>
+        <el-tab-pane label="密码登录" name="password">
+          <p class="tip">使用已注册手机号与密码登录</p>
+          <el-input v-model="phone" placeholder="手机号" maxlength="11" />
+          <el-input
+            v-model="password"
+            type="password"
+            placeholder="密码"
+            show-password
+            class="pwd"
+            @keyup.enter="onSubmitPassword"
+          />
+          <el-button type="primary" class="full" @click="onSubmitPassword">登录</el-button>
+        </el-tab-pane>
+      </el-tabs>
     </div>
   </div>
 </template>
@@ -97,13 +139,22 @@ h1 {
   margin: 0 0 8px;
   font-size: 22px;
 }
+.tabs {
+  margin-top: 4px;
+}
+.tabs :deep(.el-tabs__header) {
+  margin-bottom: 12px;
+}
 .tip {
   font-size: 12px;
   color: #999;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 .el-input {
   margin-bottom: 12px;
+}
+.pwd {
+  margin-bottom: 16px;
 }
 .row {
   display: flex;

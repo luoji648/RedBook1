@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
@@ -28,10 +29,22 @@ public class MvcConfig implements WebMvcConfigurer {
             "/chat/**",
             "/ai/**",
             "/oss/**",
+            "/notice/**",
+            "/coupon/**",
+            "/product/footprint/**",
+            "/product/save",
+            "/product/admin",
+            "/wallet/**",
     };
 
     private final LoginInterceptor loginInterceptor;
     private final RefreshInterceptor refreshInterceptor;
+
+    @Override
+    public void configurePathMatch(PathMatchConfigurer configurer) {
+        // Spring 6 / Boot 3 默认尾斜杠不兼容，部分客户端或反代可能带 "/"，易误判为 404
+        configurer.setUseTrailingSlashMatch(true);
+    }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
@@ -49,10 +62,16 @@ public class MvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/user/code",
                         "/user/login",
+                        "/user/login/password",
                         "/note/detail/**",
                         "/note/recommend",
                         "/note/related/**",
-                        "/note/comment/tree/**"
+                        "/note/comment/tree/**",
+                        "/note/user/**",
+                        "/user/public/**",
+                        "/like/user/**",
+                        "/collect/user/**",
+                        "/product/list"
                 )
                 .order(1);
 

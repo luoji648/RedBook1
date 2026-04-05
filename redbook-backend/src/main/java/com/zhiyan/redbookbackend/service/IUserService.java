@@ -18,6 +18,9 @@ public interface IUserService extends IService<User> {
 
     Result sendCode(String phone, HttpSession session);
 
+    /**
+     * 统一登录：验证码登录见 {@code POST /user/login}；密码登录见 {@code POST /user/login/password}，内部均走此方法。
+     */
     Result login(LoginFormDTO loginForm, HttpSession session);
 
     Result logout(String authorizationHeader);
@@ -35,4 +38,6 @@ public interface IUserService extends IService<User> {
     Result sign();
 
     Result signCount();
+
+    Result publicProfile(Long userId);
 }
