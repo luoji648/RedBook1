@@ -41,6 +41,18 @@ const routes = [
         meta: { title: '消息', requiresAuth: true },
       },
       {
+        path: 'group/:groupId/edit',
+        name: 'group-edit',
+        component: () => import('../views/GroupEditView.vue'),
+        meta: { title: '编辑群资料', requiresAuth: true },
+      },
+      {
+        path: 'group/:groupId',
+        name: 'group-chat',
+        component: () => import('../views/GroupChatView.vue'),
+        meta: { title: '群聊', requiresAuth: true },
+      },
+      {
         path: 'chat/notices/:slug',
         name: 'notice-category',
         component: () => import('../views/NoticeCategoryView.vue'),
@@ -63,6 +75,18 @@ const routes = [
         name: 'daily-sign',
         component: () => import('../views/DailySignView.vue'),
         meta: { title: '每日签到', requiresAuth: true },
+      },
+      {
+        path: 'user/:userId/following',
+        name: 'user-following',
+        component: () => import('../views/FollowListView.vue'),
+        meta: { title: '关注' },
+      },
+      {
+        path: 'user/:userId/followers',
+        name: 'user-followers',
+        component: () => import('../views/FollowListView.vue'),
+        meta: { title: '粉丝' },
       },
       {
         path: 'user/:userId',

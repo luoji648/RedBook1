@@ -27,6 +27,7 @@ public class MvcConfig implements WebMvcConfigurer {
             "/cart/**",
             "/order/**",
             "/chat/**",
+            "/group/**",
             "/ai/**",
             "/oss/**",
             "/notice/**",
@@ -69,8 +70,10 @@ public class MvcConfig implements WebMvcConfigurer {
                         "/note/comment/tree/**",
                         "/note/user/**",
                         "/user/public/**",
+                        "/group/by-owner/**",
                         "/like/user/**",
                         "/collect/user/**",
+                        "/follow/public/**",
                         "/product/list"
                 )
                 .order(1);

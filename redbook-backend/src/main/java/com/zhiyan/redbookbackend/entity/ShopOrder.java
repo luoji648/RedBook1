@@ -22,6 +22,10 @@ public class ShopOrder {
     private Long userCouponId;
     /** 0 created 1 paid 2 cancelled 3 refunded */
     private Integer status;
+    /** 支付成功时间（用于 1 小时退款窗口与卖家结算） */
+    private LocalDateTime payTime;
+    /** 0 未结算 1 实付已按卖家入账 */
+    private Integer sellerSettled;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

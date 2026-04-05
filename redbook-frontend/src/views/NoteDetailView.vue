@@ -18,7 +18,7 @@ import {
   unfollowUser,
   followFollowing,
   shareNote,
-  chatSend,
+  chatEnsureThread,
   productGet,
   cartAdd,
   apiBase,
@@ -290,17 +290,21 @@ async function dmAuthor() {
     router.push({ name: 'login', query: { redirect: route.fullPath } })
     return
   }
+  const peerId = author.value?.id
+  if (peerId == null) return
   try {
-    const { value } = await ElMessageBox.prompt('输入私信内容', '私信作者', {
-      confirmButtonText: '发送',
-      cancelButtonText: '取消',
+    const { data: threadId } = await chatEnsureThread(peerId)
+    if (threadId == null) {
+      ElMessage.warning('无法打开会话')
+      return
+    }
+    router.push({
+      name: 'chat-thread',
+      params: { threadId: String(threadId) },
+      query: { peer: String(peerId) },
     })
-    if (!value) return
-    await chatSend(author.value.id, value)
-    ElMessage.success('已发送，请在「消息」中查看')
-    router.push({ name: 'chat' })
   } catch {
-    /* cancel */
+    /* */
   }
 }
 

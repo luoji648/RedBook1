@@ -1,20 +1,26 @@
 package com.zhiyan.redbookbackend.service.impl;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.zhiyan.redbookbackend.dto.Result;
 import com.zhiyan.redbookbackend.dto.resp.InteractionRow;
 import com.zhiyan.redbookbackend.entity.Note;
+import com.zhiyan.redbookbackend.entity.NoticeRead;
 import com.zhiyan.redbookbackend.entity.User;
 import com.zhiyan.redbookbackend.mapper.NoteMapper;
 import com.zhiyan.redbookbackend.mapper.NoticeMapper;
+import com.zhiyan.redbookbackend.mapper.NoticeReadMapper;
 import com.zhiyan.redbookbackend.mapper.UserMapper;
 import com.zhiyan.redbookbackend.service.INoticeService;
 import com.zhiyan.redbookbackend.util.UserHolder;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,8 +29,14 @@ import java.util.stream.Collectors;
 @Service
 public class NoticeServiceImpl implements INoticeService {
 
+    private static final String CAT_LIKE_COLLECT = "like_collect";
+    private static final String CAT_FOLLOW = "follow";
+    private static final String CAT_COMMENT = "comment";
+
     @Resource
     private NoticeMapper noticeMapper;
+    @Resource
+    private NoticeReadMapper noticeReadMapper;
     @Resource
     private UserMapper userMapper;
     @Resource
@@ -105,5 +117,67 @@ public class NoticeServiceImpl implements INoticeService {
             list.add(item);
         }
         return Result.ok(list, total);
+    }
+
+    private LocalDateTime getLastReadTime(long userId, String category) {
+        NoticeRead r = noticeReadMapper.selectOne(Wrappers.<NoticeRead>lambdaQuery()
+                .eq(NoticeRead::getUserId, userId)
+                .eq(NoticeRead::getCategory, category));
+        return r == null ? null : r.getLastReadTime();
+    }
+
+    private long safeCount(Long n) {
+        return n == null ? 0L : n;
+    }
+
+    @Override
+    public Map<String, Long> getNoticeUnreadCounts() {
+        long ownerId = UserHolder.getUser().getId();
+        Map<String, Long> m = new LinkedHashMap<>();
+        m.put("likeCollect", safeCount(noticeMapper.countUnreadLikeCollect(ownerId, getLastReadTime(ownerId, CAT_LIKE_COLLECT))));
+        m.put("follow", safeCount(noticeMapper.countUnreadFollowNotice(ownerId, getLastReadTime(ownerId, CAT_FOLLOW))));
+        m.put("comment", safeCount(noticeMapper.countUnreadCommentShare(ownerId, getLastReadTime(ownerId, CAT_COMMENT))));
+        return m;
+    }
+
+    private String normalizeNoticeCategory(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String s = raw.trim().toLowerCase();
+        return switch (s) {
+            case "like_collect", "like-collect" -> CAT_LIKE_COLLECT;
+            case "follow" -> CAT_FOLLOW;
+            case "comment" -> CAT_COMMENT;
+            default -> null;
+        };
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Result markNoticeCategoryRead(String category) {
+        if (UserHolder.getUser() == null) {
+            return Result.fail("未登录");
+        }
+        String cat = normalizeNoticeCategory(category);
+        if (cat == null) {
+            return Result.fail("分类无效");
+        }
+        long me = UserHolder.getUser().getId();
+        LocalDateTime now = LocalDateTime.now();
+        NoticeRead existing = noticeReadMapper.selectOne(Wrappers.<NoticeRead>lambdaQuery()
+                .eq(NoticeRead::getUserId, me)
+                .eq(NoticeRead::getCategory, cat));
+        if (existing == null) {
+            NoticeRead nr = new NoticeRead();
+            nr.setUserId(me);
+            nr.setCategory(cat);
+            nr.setLastReadTime(now);
+            noticeReadMapper.insert(nr);
+        } else {
+            existing.setLastReadTime(now);
+            noticeReadMapper.updateById(existing);
+        }
+        return Result.ok();
     }
 }

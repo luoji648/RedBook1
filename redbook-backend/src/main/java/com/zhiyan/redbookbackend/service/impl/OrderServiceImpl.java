@@ -25,14 +25,22 @@ import com.zhiyan.redbookbackend.service.IProductService;
 import com.zhiyan.redbookbackend.service.IUserWalletService;
 import com.zhiyan.redbookbackend.util.UserHolder;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
+@Slf4j
 @Service
 public class OrderServiceImpl implements IOrderService {
 
@@ -41,6 +49,7 @@ public class OrderServiceImpl implements IOrderService {
     private static final int ORDER_CANCELLED = 2;
     private static final int ORDER_REFUNDED = 3;
     private static final long PAY_TIMEOUT_MINUTES = 15;
+    private static final long REFUND_WINDOW_HOURS = 1;
     private static final int COUPON_UNUSED = 0;
     private static final int COUPON_USED = 1;
     private static final int PRODUCT_ONLINE = 1;
@@ -67,6 +76,8 @@ public class OrderServiceImpl implements IOrderService {
     private UserCouponMapper userCouponMapper;
     @Resource
     private UserFollowMapper userFollowMapper;
+    @Resource
+    private PlatformTransactionManager transactionManager;
 
     private long computeCouponDiscount(UserCoupon c, long totalCent, List<LineAgg> aggs) {
         if (!Objects.equals(c.getStatus(), COUPON_UNUSED)) {
@@ -296,7 +307,9 @@ public class OrderServiceImpl implements IOrderService {
     @Transactional(rollbackFor = Exception.class)
     public Result refund(Long orderId) {
         Long uid = UserHolder.getUser().getId();
-        ShopOrder order = shopOrderMapper.selectById(orderId);
+        ShopOrder order = shopOrderMapper.selectOne(Wrappers.<ShopOrder>lambdaQuery()
+                .eq(ShopOrder::getId, orderId)
+                .last("FOR UPDATE"));
         if (order == null) {
             throw new BizException("订单不存在");
         }
@@ -308,6 +321,16 @@ public class OrderServiceImpl implements IOrderService {
         }
         if (order.getPayCent() == null) {
             throw new BizException("该订单不支持钱包退款");
+        }
+        if (Objects.equals(order.getSellerSettled(), 1)) {
+            throw new BizException("已超过退款期限，货款已结算给卖家");
+        }
+        if (order.getPayTime() == null) {
+            throw new BizException("订单支付信息异常，无法退款");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (!now.isBefore(order.getPayTime().plusHours(REFUND_WINDOW_HOURS))) {
+            throw new BizException("支付已超过1小时，无法退款");
         }
 
         List<OrderItem> items = orderItemMapper.selectList(
@@ -322,9 +345,8 @@ public class OrderServiceImpl implements IOrderService {
             }
         }
 
-        long disc = order.getDiscountCent() != null ? order.getDiscountCent() : 0L;
-        long back = order.getPayCent() + disc;
-        userWalletService.addBalance(uid, back);
+        long payBack = order.getPayCent() != null ? order.getPayCent() : 0L;
+        userWalletService.addBalance(uid, payBack);
 
         if (order.getUserCouponId() != null) {
             userCouponMapper.update(null,
@@ -336,7 +358,7 @@ public class OrderServiceImpl implements IOrderService {
         }
 
         order.setStatus(ORDER_REFUNDED);
-        order.setUpdateTime(LocalDateTime.now());
+        order.setUpdateTime(now);
         shopOrderMapper.updateById(order);
         return Result.ok();
     }
@@ -442,8 +464,11 @@ public class OrderServiceImpl implements IOrderService {
             productService.updateById(prod);
         }
 
+        LocalDateTime paidAt = LocalDateTime.now();
         order.setStatus(ORDER_PAID);
-        order.setUpdateTime(LocalDateTime.now());
+        order.setPayTime(paidAt);
+        order.setSellerSettled(0);
+        order.setUpdateTime(paidAt);
         shopOrderMapper.updateById(order);
         return Result.ok(order.getId());
     }
@@ -477,6 +502,13 @@ public class OrderServiceImpl implements IOrderService {
         LocalDateTime deadline = order.getCreateTime() != null
                 ? order.getCreateTime().plusMinutes(PAY_TIMEOUT_MINUTES)
                 : null;
+        LocalDateTime payTime = order.getPayTime();
+        LocalDateTime refundDeadline = payTime != null ? payTime.plusHours(REFUND_WINDOW_HOURS) : null;
+        boolean refundable = Objects.equals(order.getStatus(), ORDER_PAID)
+                && !Objects.equals(order.getSellerSettled(), 1)
+                && order.getPayCent() != null
+                && payTime != null
+                && LocalDateTime.now().isBefore(payTime.plusHours(REFUND_WINDOW_HOURS));
         OrderDetailVO vo = OrderDetailVO.builder()
                 .id(order.getId())
                 .status(order.getStatus())
@@ -486,6 +518,10 @@ public class OrderServiceImpl implements IOrderService {
                 .userCouponId(order.getUserCouponId())
                 .createTime(order.getCreateTime())
                 .updateTime(order.getUpdateTime())
+                .payTime(payTime)
+                .sellerSettled(order.getSellerSettled())
+                .refundable(refundable)
+                .refundDeadline(Objects.equals(order.getStatus(), ORDER_PAID) ? refundDeadline : null)
                 .payable(payable)
                 .payDeadline(Objects.equals(order.getStatus(), ORDER_CREATED) ? deadline : null)
                 .items(lines)
@@ -552,5 +588,92 @@ public class OrderServiceImpl implements IOrderService {
         }
         shopOrderMapper.deleteById(orderId);
         return Result.ok();
+    }
+
+    @Override
+    public int settlePaidOrdersToSellers() {
+        LocalDateTime threshold = LocalDateTime.now().minusHours(REFUND_WINDOW_HOURS);
+        List<ShopOrder> candidates = shopOrderMapper.selectList(
+                Wrappers.<ShopOrder>lambdaQuery()
+                        .eq(ShopOrder::getStatus, ORDER_PAID)
+                        .eq(ShopOrder::getSellerSettled, 0)
+                        .isNotNull(ShopOrder::getPayTime)
+                        .lt(ShopOrder::getPayTime, threshold));
+        int done = 0;
+        for (ShopOrder o : candidates) {
+            DefaultTransactionDefinition def = new DefaultTransactionDefinition();
+            def.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            TransactionStatus st = transactionManager.getTransaction(def);
+            try {
+                if (settleOnePaidOrder(o.getId())) {
+                    done++;
+                }
+                transactionManager.commit(st);
+            } catch (Exception e) {
+                transactionManager.rollback(st);
+                log.warn("订单结算失败 id={}", o.getId(), e);
+            }
+        }
+        return done;
+    }
+
+    /**
+     * 在已开启的事务内执行；须由调用方对订单行 FOR UPDATE 后调用本方法逻辑，或在本方法内加锁。
+     */
+    private boolean settleOnePaidOrder(Long orderId) {
+        ShopOrder order = shopOrderMapper.selectOne(Wrappers.<ShopOrder>lambdaQuery()
+                .eq(ShopOrder::getId, orderId)
+                .last("FOR UPDATE"));
+        if (order == null || !Objects.equals(order.getStatus(), ORDER_PAID)
+                || !Objects.equals(order.getSellerSettled(), 0)
+                || order.getPayTime() == null) {
+            return false;
+        }
+        LocalDateTime threshold = LocalDateTime.now().minusHours(REFUND_WINDOW_HOURS);
+        if (!order.getPayTime().isBefore(threshold)) {
+            return false;
+        }
+        long payCent = order.getPayCent() != null ? order.getPayCent() : 0L;
+        if (payCent <= 0) {
+            order.setSellerSettled(1);
+            order.setUpdateTime(LocalDateTime.now());
+            shopOrderMapper.updateById(order);
+            return true;
+        }
+        Map<Long, Long> subBySeller = new LinkedHashMap<>();
+        List<OrderItem> items = orderItemMapper.selectList(
+                Wrappers.<OrderItem>lambdaQuery().eq(OrderItem::getOrderId, orderId));
+        for (OrderItem oi : items) {
+            Product p = productService.getById(oi.getProductId());
+            if (p == null || p.getSellerId() == null) {
+                continue;
+            }
+            long pc = oi.getPriceCent() != null ? oi.getPriceCent() : 0L;
+            int q = oi.getQuantity() != null ? oi.getQuantity() : 0;
+            subBySeller.merge(p.getSellerId(), pc * q, Long::sum);
+        }
+        long sumEligible = subBySeller.values().stream().mapToLong(Long::longValue).sum();
+        if (sumEligible <= 0) {
+            log.warn("订单实付无法结算：明细无卖家 orderId={} payCent={}", orderId, payCent);
+            return false;
+        }
+        List<Map.Entry<Long, Long>> entries = new ArrayList<>(subBySeller.entrySet());
+        long allocated = 0L;
+        for (int i = 0; i < entries.size(); i++) {
+            Map.Entry<Long, Long> e = entries.get(i);
+            long share = (i == entries.size() - 1)
+                    ? (payCent - allocated)
+                    : (payCent * e.getValue() / sumEligible);
+            if (i < entries.size() - 1) {
+                allocated += share;
+            }
+            if (share > 0) {
+                userWalletService.addBalance(e.getKey(), share);
+            }
+        }
+        order.setSellerSettled(1);
+        order.setUpdateTime(LocalDateTime.now());
+        shopOrderMapper.updateById(order);
+        return true;
     }
 }

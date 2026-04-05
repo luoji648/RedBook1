@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   House,
@@ -11,10 +11,27 @@ import {
   ArrowLeft,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
+import { useMessageUnreadStore } from '../stores/messageUnread'
 
 const router = useRouter()
 const r = useRoute()
 const auth = useAuthStore()
+const msgUnread = useMessageUnreadStore()
+
+const chatTabBadge = computed(() => {
+  const n = msgUnread.totalUnread
+  if (n <= 0) return ''
+  return n > 99 ? '99+' : String(n)
+})
+
+watch(
+  () => auth.token,
+  (t) => {
+    if (t) msgUnread.refresh()
+    else msgUnread.reset()
+  },
+  { immediate: true },
+)
 
 const needsTopBack = computed(() =>
   [
@@ -23,12 +40,12 @@ const needsTopBack = computed(() =>
     'cart',
     'orders',
     'notice-category',
-    'chat-thread',
     'market-coupons',
     'market-wallet',
     'product-save',
     'product-footprint',
     'daily-sign',
+    'group-edit',
   ].includes(String(r.name)),
 )
 
@@ -44,7 +61,13 @@ function active(name) {
   if (name === 'discover') return r.name === 'discover'
   if (name === 'market') return r.name === 'market'
   if (name === 'chat')
-    return r.name === 'chat' || r.name === 'chat-thread' || r.name === 'notice-category'
+    return (
+      r.name === 'chat' ||
+      r.name === 'chat-thread' ||
+      r.name === 'group-chat' ||
+      r.name === 'group-edit' ||
+      r.name === 'notice-category'
+    )
   return r.name === name
 }
 </script>
@@ -98,7 +121,10 @@ function active(name) {
         <span>发布</span>
       </div>
       <div :class="['tab', { on: active('chat') }]" @click="go('chat')">
-        <el-icon :size="22"><ChatDotRound /></el-icon>
+        <div class="tab-ic-wrap">
+          <el-icon :size="22"><ChatDotRound /></el-icon>
+          <span v-if="chatTabBadge" class="msg-badge">{{ chatTabBadge }}</span>
+        </div>
         <span>消息</span>
       </div>
       <div :class="['tab', { on: active('me') }]" @click="go('me')">
@@ -177,6 +203,29 @@ function active(name) {
 }
 .tab.on {
   color: #ff2442;
+}
+.tab-ic-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.msg-badge {
+  position: absolute;
+  top: -7px;
+  right: -12px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #ff2442;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  box-sizing: border-box;
+  border: 1px solid #fff;
 }
 .tab.mid .fab {
   width: 44px;

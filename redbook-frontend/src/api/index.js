@@ -146,6 +146,16 @@ export function followFollowers(params) {
   return get('/follow/followers', params)
 }
 
+/** 指定用户的关注列表（公开接口） */
+export function followFollowingOfUser(userId, params) {
+  return get(`/follow/public/${userId}/following`, params)
+}
+
+/** 指定用户的粉丝列表（公开接口） */
+export function followFollowersOfUser(userId, params) {
+  return get(`/follow/public/${userId}/followers`, params)
+}
+
 export function shareNote(noteId) {
   return post(`/share/note/${noteId}`)
 }
@@ -247,8 +257,21 @@ export function couponClaimFollow(body) {
   return post('/coupon/claim-follow', body)
 }
 
+export function chatUnreadTotal() {
+  return get('/chat/unread-total')
+}
+
 export function chatThreads(params) {
   return get('/chat/threads', params)
+}
+
+export function chatMarkThreadRead(threadId) {
+  return post(`/chat/${threadId}/read`, {})
+}
+
+/** 获取或创建与对方的会话，返回 threadId */
+export function chatEnsureThread(peerUserId) {
+  return get('/chat/peer-thread', { peerUserId })
 }
 
 export function chatMessages(threadId, params) {
@@ -259,6 +282,64 @@ export function chatSend(toUserId, content) {
   return postForm('/chat/send', { toUserId, content })
 }
 
+/** 创建群聊 body: { name, joinMode, avatar? } joinMode: 0 无需验证 1 需群主验证；avatar 为可选 OSS URL */
+export function groupCreate(body) {
+  return post('/group/create', body)
+}
+
+/** 群主主页群列表；登录时带 inGroup */
+export function groupByOwner(ownerUserId) {
+  return get(`/group/by-owner/${ownerUserId}`)
+}
+
+export function groupMy() {
+  return get('/group/my')
+}
+
+export function groupJoin(groupId) {
+  return post(`/group/${groupId}/join`, {})
+}
+
+export function groupJoinRequestHandle(requestId, approve) {
+  return postForm(`/group/join-request/${requestId}/handle`, { approve })
+}
+
+export function groupMeta(groupId) {
+  return get(`/group/${groupId}/meta`)
+}
+
+export function groupMessages(groupId, params) {
+  return get(`/group/${groupId}/messages`, params)
+}
+
+export function groupSend(groupId, content) {
+  return postForm(`/group/${groupId}/send`, { content })
+}
+
+export function groupMarkRead(groupId) {
+  return post(`/group/${groupId}/read`, {})
+}
+
+/** 群详情与成员列表（在群成员） */
+export function groupDetail(groupId) {
+  return get(`/group/${groupId}/detail`)
+}
+
+/** 群主移出成员 */
+export function groupKick(groupId, targetUserId) {
+  return postForm(`/group/${groupId}/kick`, { targetUserId })
+}
+
+/** 群主更新群名称、头像；avatar 传空字符串表示使用默认（群主头像） */
+export function groupUpdateProfile(groupId, body) {
+  return put(`/group/${groupId}/profile`, body)
+}
+
 export function noticeInteractions(params) {
   return get('/notice/interactions', params)
+}
+
+/** category: like_collect | follow | comment */
+export function noticeMarkRead(category) {
+  return postForm('/notice/read', { category })
 }

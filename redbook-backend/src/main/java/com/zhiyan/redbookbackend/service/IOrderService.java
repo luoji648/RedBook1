@@ -29,6 +29,9 @@ public interface IOrderService {
     /** 取消创建时间超过 15 分钟仍未支付的订单，并将商品恢复回购物车 */
     int cancelExpiredPendingOrders();
 
+    /** 支付成功满 1 小时且未退款的订单：将实付按商品行比例拆分并入账各卖家钱包 */
+    int settlePaidOrdersToSellers();
+
     /** 用户主动关闭待支付订单（恢复购物车，券仍为未使用） */
     Result close(Long orderId);
 

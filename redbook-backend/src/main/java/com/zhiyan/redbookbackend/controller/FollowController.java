@@ -35,4 +35,18 @@ public class FollowController {
                             @RequestParam(defaultValue = "20") long size) {
         return followService.following(current, size);
     }
+
+    @GetMapping("/public/{userId}/followers")
+    public Result followersOfUser(@PathVariable Long userId,
+                                  @RequestParam(defaultValue = "1") long current,
+                                  @RequestParam(defaultValue = "20") long size) {
+        return followService.followersOfUser(userId, current, size);
+    }
+
+    @GetMapping("/public/{userId}/following")
+    public Result followingOfUser(@PathVariable Long userId,
+                                  @RequestParam(defaultValue = "1") long current,
+                                  @RequestParam(defaultValue = "20") long size) {
+        return followService.followingOfUser(userId, current, size);
+    }
 }

@@ -21,7 +21,7 @@ public class UserController {
 
     private final IUserService userService;
 
-    @Operation(summary = "发送短信验证码")
+    @Operation(summary = "发送短信验证码", description = "成功时 data 为 6 位验证码（模拟短信，便于联调）")
     @PostMapping("/code")
     public Result sendCode(@RequestParam("phone") String phone, HttpSession session) {
         return userService.sendCode(phone, session);

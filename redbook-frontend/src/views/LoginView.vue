@@ -24,8 +24,11 @@ async function onSend() {
   }
   sending.value = true
   try {
-    await sendCode(phone.value)
-    ElMessage.success('验证码已发送（请查看后端日志）')
+    const { data } = await sendCode(phone.value)
+    if (data != null && data !== '') {
+      code.value = String(data)
+    }
+    ElMessage.success('验证码已发送')
     sec.value = 60
     timer = setInterval(() => {
       sec.value -= 1
@@ -91,7 +94,7 @@ async function onSubmitPassword() {
       <h1>登录</h1>
       <el-tabs v-model="mode" class="tabs">
         <el-tab-pane label="验证码登录" name="code">
-          <p class="tip">验证码请在后端日志中查看（模拟短信）</p>
+          <p class="tip">模拟短信：获取验证码后将自动填入下方输入框</p>
           <el-input v-model="phone" placeholder="手机号" maxlength="11" />
           <div class="row">
             <el-input v-model="code" placeholder="验证码" maxlength="6" />

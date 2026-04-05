@@ -23,6 +23,14 @@ public class OrderDetailVO {
     private Long userCouponId;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    @Schema(description = "支付成功时间")
+    private LocalDateTime payTime;
+    @Schema(description = "1 表示实付已结算给卖家，不可退款")
+    private Integer sellerSettled;
+    @Schema(description = "已支付且未结算、且在支付后 1 小时内可 true")
+    private Boolean refundable;
+    @Schema(description = "退款截止时间（支付后 1 小时）")
+    private LocalDateTime refundDeadline;
     @Schema(description = "待支付且未超时可 true")
     private Boolean payable;
     @Schema(description = "待支付订单的支付截止时间，超时后需重新下单")

@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/auth'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { userPublic, noteByUser, followUser, unfollowUser, collectByUser, likeByUser } from '../api'
 import NoteMasonry from '../components/NoteMasonry.vue'
+import GroupTabPanel from '../components/GroupTabPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,7 +23,7 @@ const collectPage = ref(1)
 const likeList = ref([])
 const likeTotal = ref(0)
 const likePage = ref(1)
-const tab = ref('notes')
+const tab = ref(route.query.tab === 'groups' ? 'groups' : 'notes')
 
 const user = computed(() => profile.value?.user)
 const userInfo = computed(() => profile.value?.userInfo)
@@ -49,6 +50,13 @@ async function loadProfile() {
     profile.value = null
   }
 }
+
+watch(
+  () => route.query.tab,
+  (q) => {
+    if (q === 'groups') tab.value = 'groups'
+  },
+)
 
 async function loadNotes(reset) {
   if (tab.value !== 'notes') return
@@ -148,6 +156,14 @@ function goMe() {
   router.push({ name: 'me' })
 }
 
+function goFollowingList() {
+  router.push({ name: 'user-following', params: { userId: String(userId.value) } })
+}
+
+function goFollowersList() {
+  router.push({ name: 'user-followers', params: { userId: String(userId.value) } })
+}
+
 watch(userId, async () => {
   await loadProfile()
   await loadNotes(true)
@@ -191,8 +207,8 @@ onMounted(async () => {
           {{ userInfo?.introduce || '暂无简介' }}
         </div>
         <div class="stats">
-          <span>{{ userInfo?.followee ?? 0 }} 关注</span>
-          <span>{{ userInfo?.fans ?? 0 }} 粉丝</span>
+          <span class="stat-link" role="button" tabindex="0" @click="goFollowersList">{{ userInfo?.fans ?? 0 }} 粉丝</span>
+          <span class="stat-link" role="button" tabindex="0" @click="goFollowingList">{{ userInfo?.followee ?? 0 }} 关注</span>
         </div>
       </div>
     </div>
@@ -218,6 +234,7 @@ onMounted(async () => {
       <el-tab-pane label="笔记" name="notes" />
       <el-tab-pane label="收藏" name="collect" />
       <el-tab-pane label="赞过" name="like" />
+      <el-tab-pane label="群聊" name="groups" />
     </el-tabs>
 
     <template v-if="tab === 'notes'">
@@ -264,6 +281,9 @@ onMounted(async () => {
           加载更多
         </el-button>
       </template>
+    </template>
+    <template v-else-if="tab === 'groups'">
+      <GroupTabPanel :owner-user-id="userId" />
     </template>
   </div>
   <div v-else class="loading">加载中…</div>
@@ -317,6 +337,12 @@ onMounted(async () => {
   color: #999;
   display: flex;
   gap: 16px;
+}
+.stat-link {
+  cursor: pointer;
+}
+.stat-link:hover {
+  color: #409eff;
 }
 .actions {
   margin-bottom: 12px;

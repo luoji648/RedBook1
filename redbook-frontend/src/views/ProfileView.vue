@@ -8,10 +8,9 @@ import {
   noteMy,
   collectMy,
   likeMy,
-  followFollowing,
-  followFollowers,
   deleteNote,
 } from '../api'
+import GroupTabPanel from '../components/GroupTabPanel.vue'
 
 const router = useRouter()
 
@@ -46,14 +45,9 @@ async function loadTab() {
       const { data, total: t } = await likeMy({ current: 1, size: 20 })
       list.value = data || []
       total.value = t || 0
-    } else if (tab.value === 'following') {
-      const { data, total: t } = await followFollowing({ current: 1, size: 50 })
-      list.value = data || []
-      total.value = t || 0
-    } else if (tab.value === 'followers') {
-      const { data, total: t } = await followFollowers({ current: 1, size: 50 })
-      list.value = data || []
-      total.value = t || 0
+    } else if (tab.value === 'groups') {
+      list.value = []
+      total.value = 0
     }
   } catch {
     list.value = []
@@ -91,11 +85,16 @@ function goSettings() {
   router.push({ name: 'settings' })
 }
 
-const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+function goMyFollowing() {
+  const id = me.value?.user?.id
+  if (!id) return
+  router.push({ name: 'user-following', params: { userId: String(id) } })
+}
 
-function goUserProfile(u) {
-  if (!u?.id) return
-  router.push({ name: 'user-profile', params: { userId: String(u.id) } })
+function goMyFollowers() {
+  const id = me.value?.user?.id
+  if (!id) return
+  router.push({ name: 'user-followers', params: { userId: String(id) } })
 }
 
 function editNote(n) {
@@ -135,7 +134,11 @@ onMounted(async () => {
       />
       <div class="txt">
         <div class="name">{{ me.user?.nickName || '用户' }}</div>
-        <div class="sub">粉丝 {{ me.userInfo?.fans ?? 0 }} · 关注 {{ me.userInfo?.followee ?? 0 }}</div>
+        <div class="sub">
+          <span class="stat-link" role="button" tabindex="0" @click="goMyFollowing">关注 {{ me.userInfo?.followee ?? 0 }}</span>
+          <span class="sep"> · </span>
+          <span class="stat-link" role="button" tabindex="0" @click="goMyFollowers">粉丝 {{ me.userInfo?.fans ?? 0 }}</span>
+        </div>
       </div>
       <el-button :icon="Setting" circle @click="goSettings" />
     </div>
@@ -148,8 +151,7 @@ onMounted(async () => {
       <el-tab-pane label="笔记" name="notes" />
       <el-tab-pane label="收藏" name="collect" />
       <el-tab-pane label="点赞" name="like" />
-      <el-tab-pane label="关注" name="following" />
-      <el-tab-pane label="粉丝" name="followers" />
+      <el-tab-pane label="群聊" name="groups" />
     </el-tabs>
 
     <div v-if="tab === 'notes' || tab === 'collect' || tab === 'like'" class="grid">
@@ -163,18 +165,8 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-else class="ulist">
-      <div v-for="u in list" :key="u.id" class="urow">
-        <div class="uinfo">
-          <img
-            :src="u.icon || defaultAvatar"
-            class="uav"
-            alt=""
-            @click="goUserProfile(u)"
-          />
-          <span class="uname">{{ u.nickName || '用户' }}</span>
-        </div>
-      </div>
+    <div v-if="tab === 'groups' && me?.user?.id" class="gpanel">
+      <GroupTabPanel :owner-user-id="me.user.id" />
     </div>
 
     <el-button
@@ -220,6 +212,16 @@ onMounted(async () => {
   color: #999;
   margin-top: 4px;
 }
+.stat-link {
+  cursor: pointer;
+  color: inherit;
+}
+.stat-link:hover {
+  color: #409eff;
+}
+.sep {
+  user-select: none;
+}
 .row {
   display: flex;
   gap: 8px;
@@ -257,39 +259,11 @@ onMounted(async () => {
   gap: 4px;
   padding: 0 8px 8px;
 }
-.ulist {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.urow {
-  display: flex;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-.uinfo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.uav {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-.uname {
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .more {
   width: 100%;
   margin-top: 12px;
+}
+.gpanel {
+  padding-top: 4px;
 }
 </style>

@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,5 +25,11 @@ public class NoticeController {
                                @RequestParam(defaultValue = "20") long size,
                                @RequestParam(defaultValue = "all") String category) {
         return noticeService.interactionPage(current, size, category);
+    }
+
+    @Operation(summary = "标记某类互动通知已读（进入对应列表页后调用）")
+    @PostMapping("/read")
+    public Result markRead(@RequestParam String category) {
+        return noticeService.markNoticeCategoryRead(category);
     }
 }

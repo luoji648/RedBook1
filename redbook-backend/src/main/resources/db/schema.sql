@@ -135,6 +135,8 @@ CREATE TABLE IF NOT EXISTS tb_chat_thread (
     user_low BIGINT NOT NULL,
     user_high BIGINT NOT NULL,
     last_msg_time DATETIME DEFAULT NULL,
+    user_low_read_msg_id BIGINT DEFAULT NULL COMMENT 'user_low 侧已读至该消息 id',
+    user_high_read_msg_id BIGINT DEFAULT NULL COMMENT 'user_high 侧已读至该消息 id',
     UNIQUE KEY uk_thread_users (user_low, user_high),
     CONSTRAINT fk_thread_low FOREIGN KEY (user_low) REFERENCES tb_user(id) ON DELETE CASCADE,
     CONSTRAINT fk_thread_high FOREIGN KEY (user_high) REFERENCES tb_user(id) ON DELETE CASCADE
@@ -208,6 +210,8 @@ CREATE TABLE IF NOT EXISTS tb_order (
     discount_cent BIGINT NOT NULL DEFAULT 0 COMMENT '优惠券抵扣（分）',
     user_coupon_id BIGINT NULL COMMENT '使用的用户券 id',
     status TINYINT NOT NULL DEFAULT 0 COMMENT '0 created 1 paid 2 cancelled 3 refunded',
+    pay_time DATETIME NULL COMMENT '支付成功时间',
+    seller_settled TINYINT NOT NULL DEFAULT 0 COMMENT '1 实付已结算给卖家',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_order_user (user_id),
@@ -275,4 +279,64 @@ CREATE TABLE IF NOT EXISTS tb_wallet_recharge (
     UNIQUE KEY uk_wr_out_trade (out_trade_no),
     INDEX idx_wr_user (user_id),
     CONSTRAINT fk_wr_user FOREIGN KEY (user_id) REFERENCES tb_user(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ---------- group chat ----------
+CREATE TABLE IF NOT EXISTS tb_chat_group (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    owner_id BIGINT NOT NULL,
+    name VARCHAR(128) NOT NULL,
+    avatar VARCHAR(512) DEFAULT NULL COMMENT '群头像 URL，空则沿用群主头像',
+    join_mode TINYINT NOT NULL DEFAULT 0 COMMENT '0 无需验证 1 需群主验证',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_msg_time DATETIME DEFAULT NULL,
+    INDEX idx_chat_group_owner (owner_id),
+    CONSTRAINT fk_chat_group_owner FOREIGN KEY (owner_id) REFERENCES tb_user(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tb_chat_group_member (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    group_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    role TINYINT NOT NULL DEFAULT 0 COMMENT '0 成员 1 群主',
+    member_status TINYINT NOT NULL DEFAULT 0 COMMENT '0 在群 1 已移出',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_read_msg_id BIGINT DEFAULT NULL COMMENT '成员已读至该群消息 id',
+    UNIQUE KEY uk_cgm_group_user (group_id, user_id),
+    INDEX idx_cgm_user (user_id),
+    CONSTRAINT fk_cgm_group FOREIGN KEY (group_id) REFERENCES tb_chat_group(id) ON DELETE CASCADE,
+    CONSTRAINT fk_cgm_user FOREIGN KEY (user_id) REFERENCES tb_user(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tb_chat_group_join_request (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    group_id BIGINT NOT NULL,
+    applicant_id BIGINT NOT NULL,
+    status TINYINT NOT NULL DEFAULT 0 COMMENT '0 待处理 1 已同意 2 已拒绝',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_cgj_group_applicant (group_id, applicant_id),
+    INDEX idx_cgj_group_status (group_id, status),
+    CONSTRAINT fk_cgj_group FOREIGN KEY (group_id) REFERENCES tb_chat_group(id) ON DELETE CASCADE,
+    CONSTRAINT fk_cgj_applicant FOREIGN KEY (applicant_id) REFERENCES tb_user(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tb_group_message (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    group_id BIGINT NOT NULL,
+    sender_id BIGINT NOT NULL,
+    content VARCHAR(2048) NOT NULL,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_gmsg_group_time (group_id, create_time),
+    CONSTRAINT fk_gmsg_group FOREIGN KEY (group_id) REFERENCES tb_chat_group(id) ON DELETE CASCADE,
+    CONSTRAINT fk_gmsg_sender FOREIGN KEY (sender_id) REFERENCES tb_user(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tb_notice_read (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    category VARCHAR(32) NOT NULL COMMENT 'like_collect | follow | comment',
+    last_read_time DATETIME(3) NOT NULL,
+    UNIQUE KEY uk_notice_read_user_cat (user_id, category),
+    CONSTRAINT fk_notice_read_user FOREIGN KEY (user_id) REFERENCES tb_user(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

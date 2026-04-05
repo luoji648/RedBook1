@@ -115,4 +115,36 @@ public class FollowServiceImpl implements IFollowService {
         List<User> users = userMapper.selectList(Wrappers.<User>lambdaQuery().in(User::getId, ids));
         return Result.ok(users, p.getTotal());
     }
+
+    @Override
+    public Result followersOfUser(Long userId, long current, long size) {
+        if (userMapper.selectById(userId) == null) {
+            return Result.fail("用户不存在");
+        }
+        Page<UserFollow> page = Page.of(current, size);
+        IPage<UserFollow> p = userFollowMapper.selectPage(page,
+                Wrappers.<UserFollow>lambdaQuery().eq(UserFollow::getFolloweeId, userId).orderByDesc(UserFollow::getCreateTime));
+        List<Long> ids = p.getRecords().stream().map(UserFollow::getFollowerId).collect(Collectors.toList());
+        if (ids.isEmpty()) {
+            return Result.ok(List.of(), 0L);
+        }
+        List<User> users = userMapper.selectList(Wrappers.<User>lambdaQuery().in(User::getId, ids));
+        return Result.ok(users, p.getTotal());
+    }
+
+    @Override
+    public Result followingOfUser(Long userId, long current, long size) {
+        if (userMapper.selectById(userId) == null) {
+            return Result.fail("用户不存在");
+        }
+        Page<UserFollow> page = Page.of(current, size);
+        IPage<UserFollow> p = userFollowMapper.selectPage(page,
+                Wrappers.<UserFollow>lambdaQuery().eq(UserFollow::getFollowerId, userId).orderByDesc(UserFollow::getCreateTime));
+        List<Long> ids = p.getRecords().stream().map(UserFollow::getFolloweeId).collect(Collectors.toList());
+        if (ids.isEmpty()) {
+            return Result.ok(List.of(), 0L);
+        }
+        List<User> users = userMapper.selectList(Wrappers.<User>lambdaQuery().in(User::getId, ids));
+        return Result.ok(users, p.getTotal());
+    }
 }

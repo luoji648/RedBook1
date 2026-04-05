@@ -1,10 +1,12 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { noticeInteractions } from '../api'
+import { noticeInteractions, noticeMarkRead } from '../api'
+import { useMessageUnreadStore } from '../stores/messageUnread'
 
 const route = useRoute()
 const router = useRouter()
+const msgUnread = useMessageUnreadStore()
 
 const apiCategory = computed(() => {
   const slug = String(route.params.slug || '')
@@ -45,6 +47,16 @@ async function loadInteractions(reset) {
   }
 }
 
+async function enterCategory() {
+  await loadInteractions(true)
+  try {
+    await noticeMarkRead(apiCategory.value)
+    await msgUnread.refresh()
+  } catch {
+    /* http 已提示 */
+  }
+}
+
 function typeLabel(type) {
   if (type === 'LIKE') return '赞了你的笔记'
   if (type === 'COLLECT') return '收藏了你的笔记'
@@ -71,11 +83,11 @@ function moreInteractions() {
 }
 
 watch(apiCategory, () => {
-  loadInteractions(true)
+  enterCategory()
 })
 
 onMounted(() => {
-  loadInteractions(true)
+  enterCategory()
 })
 </script>
 

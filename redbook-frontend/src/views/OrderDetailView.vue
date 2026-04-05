@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { orderDetail, orderClose, orderDeleteRecord } from '../api'
+import { orderDetail, orderClose, orderDeleteRecord, orderRefund } from '../api'
 import PayPasswordDialog from '../components/PayPasswordDialog.vue'
 
 const route = useRoute()
@@ -82,6 +82,24 @@ async function closeOrder() {
   }
 }
 
+async function refundOrder() {
+  if (!detail.value?.refundable) return
+  try {
+    await ElMessageBox.confirm(
+      '实付将退回钱包，优惠券将恢复为未使用。确定退款？',
+      '申请退款',
+      { type: 'warning' }
+    )
+    await orderRefund(orderId.value)
+    ElMessage.success('已退款')
+    await load()
+  } catch (e) {
+    if (e !== 'cancel') {
+      /* http 已提示 */
+    }
+  }
+}
+
 async function deleteRecord() {
   const st = detail.value?.status
   if (st === 0 || st == null) return
@@ -130,6 +148,15 @@ onMounted(() => load())
         <span v-if="detail.payCent != null" class="pay">应付 ¥{{ yuan(detail.payCent) }}</span>
       </div>
       <div class="time">创建时间 {{ fmtTime(detail.createTime) }}</div>
+      <div v-if="detail.status === 1 && detail.payTime" class="time">
+        支付时间 {{ fmtTime(detail.payTime) }}
+        <template v-if="detail.refundDeadline">
+          · 退款截止 {{ fmtTime(detail.refundDeadline) }}
+        </template>
+      </div>
+      <div v-if="detail.status === 1 && detail.sellerSettled === 1" class="muted-line">
+        货款已结算给卖家，不可退款
+      </div>
 
       <h3 class="sub">商品明细</h3>
       <div v-for="(it, idx) in detail.items || []" :key="idx" class="line">
@@ -145,6 +172,9 @@ onMounted(() => load())
           <el-button type="primary" @click="openPayDialog">继续支付</el-button>
           <el-button text type="primary" @click="goWallet">去钱包充值</el-button>
         </template>
+        <el-button v-if="detail.refundable" type="warning" plain @click="refundOrder">
+          申请退款
+        </el-button>
         <el-button v-if="detail.status === 0" type="danger" plain @click="closeOrder">
           关闭订单
         </el-button>
@@ -261,5 +291,10 @@ onMounted(() => load())
   color: #999;
   text-align: center;
   padding: 32px;
+}
+.muted-line {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #999;
 }
 </style>

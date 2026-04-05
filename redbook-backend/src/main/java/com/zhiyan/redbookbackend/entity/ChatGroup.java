@@ -8,15 +8,16 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("tb_chat_thread")
-public class ChatThread {
+@TableName("tb_chat_group")
+public class ChatGroup {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private Long userLow;
-    private Long userHigh;
+    private Long ownerId;
+    private String name;
+    /** 自定义群头像 URL，空则展示群主头像 */
+    private String avatar;
+    /** 0 无需验证 1 需群主验证 */
+    private Integer joinMode;
+    private LocalDateTime createTime;
     private LocalDateTime lastMsgTime;
-    /** user_low 侧已读至该私信消息 id */
-    private Long userLowReadMsgId;
-    /** user_high 侧已读至该私信消息 id */
-    private Long userHighReadMsgId;
 }

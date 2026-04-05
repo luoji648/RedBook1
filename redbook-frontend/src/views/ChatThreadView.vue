@@ -2,13 +2,25 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { chatMessages, chatSend, fetchMe, userPublic } from '../api'
+import { ElMessage } from 'element-plus'
+import {
+  chatMessages,
+  chatSend,
+  chatMarkThreadRead,
+  fetchMe,
+  userPublic,
+  groupJoinRequestHandle,
+} from '../api'
+import { useMessageUnreadStore } from '../stores/messageUnread'
+
+const GROUP_JOIN_PREFIX = '__RB_GROUP_JOIN__'
 
 const DEFAULT_AVATAR =
   'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
 const route = useRoute()
 const router = useRouter()
+const msgUnread = useMessageUnreadStore()
 const threadId = computed(() => route.params.threadId)
 const peerId = computed(() => {
   const q = route.query.peer
@@ -55,6 +67,43 @@ async function loadMsgs() {
   }
 }
 
+async function markReadAndRefreshUnread() {
+  const tid = threadId.value
+  if (tid == null || tid === '') return
+  try {
+    await chatMarkThreadRead(tid)
+    await msgUnread.refresh()
+  } catch {
+    /* 已提示 */
+  }
+}
+
+function parseGroupJoin(content) {
+  if (!content || !content.startsWith(GROUP_JOIN_PREFIX)) return null
+  try {
+    return JSON.parse(content.slice(GROUP_JOIN_PREFIX.length))
+  } catch {
+    return null
+  }
+}
+
+function showJoinActions(m) {
+  const p = parseGroupJoin(m.content)
+  if (!p || myId.value == null) return false
+  return m.senderId !== myId.value && Number(p.applicantId) === Number(m.senderId)
+}
+
+async function handleJoinRequest(requestId, approve) {
+  try {
+    await groupJoinRequestHandle(requestId, approve)
+    ElMessage.success(approve ? '已同意入群' : '已拒绝该申请')
+    await loadMsgs()
+    await markReadAndRefreshUnread()
+  } catch {
+    /* */
+  }
+}
+
 function goPeerProfile() {
   if (peerId.value == null) return
   router.push({ name: 'user-profile', params: { userId: String(peerId.value) } })
@@ -70,6 +119,7 @@ async function send() {
     await chatSend(peerId.value, t)
     text.value = ''
     await loadMsgs()
+    await markReadAndRefreshUnread()
   } catch {
     /* */
   }
@@ -78,12 +128,14 @@ async function send() {
 watch([threadId, peerId], async () => {
   await loadPeer()
   await loadMsgs()
+  await markReadAndRefreshUnread()
 })
 
 onMounted(async () => {
   await loadMe()
   await loadPeer()
   await loadMsgs()
+  await markReadAndRefreshUnread()
 })
 </script>
 
@@ -111,7 +163,27 @@ onMounted(async () => {
         :key="m.id"
         :class="['bubble', m.senderId === myId ? 'me' : 'they']"
       >
-        {{ m.content }}
+        <template v-if="parseGroupJoin(m.content)">
+          <template v-if="m.senderId === myId">
+            <div class="join-hint">已提交入群申请，等待群主在私信中处理</div>
+            <div class="join-gn">群「{{ parseGroupJoin(m.content).groupName }}」</div>
+          </template>
+          <template v-else>
+            <div class="join-hint">申请加入群聊</div>
+            <div class="join-gn">「{{ parseGroupJoin(m.content).groupName }}」</div>
+            <div v-if="showJoinActions(m)" class="join-actions">
+              <el-button size="small" type="primary" @click="handleJoinRequest(parseGroupJoin(m.content).requestId, true)">
+                同意
+              </el-button>
+              <el-button size="small" @click="handleJoinRequest(parseGroupJoin(m.content).requestId, false)">
+                拒绝
+              </el-button>
+            </div>
+          </template>
+        </template>
+        <template v-else>
+          {{ m.content }}
+        </template>
         <div class="ts">{{ m.createTime }}</div>
       </div>
     </div>
@@ -213,6 +285,20 @@ onMounted(async () => {
   font-size: 10px;
   color: #999;
   margin-top: 4px;
+}
+.join-hint {
+  font-size: 14px;
+  font-weight: 600;
+}
+.join-gn {
+  font-size: 13px;
+  margin-top: 6px;
+  color: #555;
+}
+.join-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
 }
 .input {
   display: flex;

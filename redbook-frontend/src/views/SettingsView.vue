@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import {
   fetchMe,
   fetchUserInfo,
@@ -9,6 +10,7 @@ import {
   updateUserInfo,
   changePassword,
   logout,
+  ossPresign,
 } from '../api'
 import { useAuthStore } from '../stores/auth'
 
@@ -17,6 +19,7 @@ const auth = useAuthStore()
 
 const nickName = ref('')
 const icon = ref('')
+const uploadingAvatar = ref(false)
 const city = ref('')
 const introduce = ref('')
 const gender = ref(true)
@@ -52,6 +55,40 @@ async function saveProfile() {
   } catch {
     /* */
   }
+}
+
+async function handleAvatarUpload(opt) {
+  const { file, onError } = opt
+  const raw = file.raw ?? file
+  uploadingAvatar.value = true
+  try {
+    const ext = '.' + (String(raw.name || 'image.jpg').split('.').pop() || 'jpg')
+    const contentType = raw.type || 'application/octet-stream'
+    const { data } = await ossPresign(ext, contentType)
+    const headers = { 'Content-Type': contentType }
+    if (data.putAclPublicRead) {
+      headers['x-oss-object-acl'] = 'public-read'
+    }
+    const putRes = await fetch(data.uploadUrl, {
+      method: 'PUT',
+      body: raw,
+      headers,
+    })
+    if (!putRes.ok) throw new Error('上传失败')
+    icon.value = data.publicUrl
+    ElMessage.success('上传成功，请点击「保存资料」')
+    opt.onSuccess?.(data)
+  } catch (e) {
+    ElMessage.error(e.message || '上传失败')
+    onError(e)
+  } finally {
+    uploadingAvatar.value = false
+  }
+}
+
+function clearAvatar() {
+  icon.value = ''
+  ElMessage.success('已清除，保存后生效')
 }
 
 async function saveInfo() {
@@ -106,8 +143,32 @@ onMounted(load)
       <el-form-item label="昵称">
         <el-input v-model="nickName" />
       </el-form-item>
-      <el-form-item label="头像 URL">
-        <el-input v-model="icon" placeholder="可填 OSS 公开地址" />
+      <el-form-item label="头像">
+        <div class="avatar-row">
+          <el-upload
+            class="av-uploader"
+            :show-file-list="false"
+            accept="image/*"
+            :http-request="handleAvatarUpload"
+            :disabled="uploadingAvatar"
+          >
+            <img v-if="icon" class="av-preview" :src="icon" alt="" />
+            <div v-else class="av-placeholder">
+              <el-icon :size="28"><Plus /></el-icon>
+              <span class="av-hint">{{ uploadingAvatar ? '上传中…' : '点击上传' }}</span>
+            </div>
+          </el-upload>
+          <el-button
+            v-if="icon"
+            text
+            type="primary"
+            class="av-clear"
+            :disabled="uploadingAvatar"
+            @click="clearAvatar"
+          >
+            清除
+          </el-button>
+        </div>
       </el-form-item>
       <el-button type="primary" @click="saveProfile">保存资料</el-button>
     </el-form>
@@ -170,5 +231,45 @@ h2 {
   margin-top: 4px;
   font-size: 12px;
   color: #999;
+}
+.avatar-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.av-uploader :deep(.el-upload) {
+  border: 1px dashed #dcdfe6;
+  border-radius: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+}
+.av-preview {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  display: block;
+}
+.av-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #999;
+  font-size: 12px;
+  padding: 8px;
+  text-align: center;
+}
+.av-hint {
+  line-height: 1.2;
+}
+.av-clear {
+  align-self: center;
 }
 </style>

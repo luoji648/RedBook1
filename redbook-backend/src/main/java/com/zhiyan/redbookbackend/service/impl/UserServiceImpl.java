@@ -2,7 +2,6 @@ package com.zhiyan.redbookbackend.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
-import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zhiyan.redbookbackend.config.RedbookProperties;
@@ -31,7 +30,6 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.connection.BitFieldSubCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -39,7 +37,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -84,7 +81,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         stringRedisTemplate.opsForValue().set(RedisConstants.LOGIN_CODE_KEY + phone, code, RedisConstants.LOGIN_CODE_TTL, TimeUnit.MINUTES);
         stringRedisTemplate.opsForValue().set(sendKey, "1", 60, TimeUnit.SECONDS);
         log.debug("发送短信验证码成功，手机号:{} 验证码:{}", phone, code);
-        return Result.ok();
+        return Result.ok(code);
     }
 
     @Override
@@ -340,22 +337,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         String keySuffix = now.format(DateTimeFormatter.ofPattern(":yyyy/MM"));
         String key = RedisConstants.USER_SIGN_KEY + userId + keySuffix;
         int dayOfMonth = now.getDayOfMonth();
-        List<Long> bitMapList = stringRedisTemplate.opsForValue().bitField(
-                key, BitFieldSubCommands.create()
-                        .get(BitFieldSubCommands.BitFieldType.unsigned(dayOfMonth)).valueAt(0)
-        );
-        if (CollectionUtil.isEmpty(bitMapList)) {
-            return Result.ok(0);
-        }
-        Long num = bitMapList.get(0);
-        if (num == null || num == 0) {
-            return Result.ok(0);
-        }
-        // 从今天（含）向前数连续已签到天数，避免「仅签今天」因月初未签而显示 0
+        // 与 sign() 一致使用 getBit，避免 BITFIELD GET 与 SETBIT/GETBIT 位序理解不一致导致恒为 0
         int cnt = 0;
         for (int d = dayOfMonth; d >= 1; d--) {
             int bitIdx = d - 1;
-            if (((num >>> bitIdx) & 1L) == 1L) {
+            Boolean bit = stringRedisTemplate.opsForValue().getBit(key, bitIdx);
+            if (Boolean.TRUE.equals(bit)) {
                 cnt++;
             } else {
                 break;

@@ -44,7 +44,12 @@ function next() {
 }
 
 function canRefund(o) {
-  return o.status === 1 && o.payCent != null
+  if (o.status !== 1 || o.payCent == null) return false
+  if (o.sellerSettled === 1) return false
+  if (!o.payTime) return false
+  const t = typeof o.payTime === 'string' ? o.payTime.replace(' ', 'T') : o.payTime
+  const deadline = new Date(t).getTime() + 60 * 60 * 1000
+  return Date.now() < deadline
 }
 
 function canClose(o) {
@@ -62,7 +67,7 @@ function openDetail(o) {
 async function refund(o) {
   try {
     await ElMessageBox.confirm(
-      '退款将退回钱包：实付金额 + 优惠券抵扣部分，已用优惠券将恢复为未使用。确定退款？',
+      '支付成功后 1 小时内可申请退款：实付金额退回钱包，已用优惠券将恢复为未使用。超时后货款将结算给卖家。确定退款？',
       '申请退款',
       { type: 'warning' }
     )
