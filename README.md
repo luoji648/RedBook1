@@ -116,7 +116,7 @@ npm run preview   # 本地预览；已配置与 dev 相同的 API 代理
 
 ---
 
-## 接口约定（给联调同学）
+## 接口约定
 
 - 统一响应体字段风格见后端 `Result` / `ScrollResult` 等 DTO。
 - 需登录的接口在请求头携带：`Authorization: Bearer <token>`
