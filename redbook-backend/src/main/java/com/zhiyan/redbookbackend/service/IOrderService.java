@@ -26,13 +26,13 @@ public interface IOrderService {
     /** 订单详情（含明细行与是否可继续支付） */
     Result detail(Long orderId);
 
-    /** 取消创建时间超过 15 分钟仍未支付的订单，并将商品恢复回购物车 */
+    /** 取消创建时间超过 15 分钟仍未支付的订单（购物车未在下单时清空，无需再恢复） */
     int cancelExpiredPendingOrders();
 
     /** 支付成功满 1 小时且未退款的订单：将实付按商品行比例拆分并入账各卖家钱包 */
     int settlePaidOrdersToSellers();
 
-    /** 用户主动关闭待支付订单（恢复购物车，券仍为未使用） */
+    /** 用户主动关闭待支付订单（券仍为未使用；购物车商品仅在支付成功后才移除） */
     Result close(Long orderId);
 
     /** 删除订单记录（非待支付状态：已支付/已取消/已退款），物理删除订单及明细 */

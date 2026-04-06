@@ -8,6 +8,8 @@ import com.zhiyan.redbookbackend.dto.req.OrderCreateFromCartDTO;
 import com.zhiyan.redbookbackend.dto.resp.DirectBuyPreviewVO;
 import com.zhiyan.redbookbackend.dto.resp.OrderDetailVO;
 import com.zhiyan.redbookbackend.dto.resp.OrderLineVO;
+import com.zhiyan.redbookbackend.dto.resp.OrderListProductPreviewVO;
+import com.zhiyan.redbookbackend.dto.resp.OrderListRowVO;
 import com.zhiyan.redbookbackend.entity.Cart;
 import com.zhiyan.redbookbackend.entity.OrderItem;
 import com.zhiyan.redbookbackend.entity.Product;
@@ -39,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -161,6 +164,7 @@ public class OrderServiceImpl implements IOrderService {
         order.setDiscountCent(discountCent);
         order.setUserCouponId(userCouponId);
         order.setStatus(ORDER_CREATED);
+        order.setFromCart(1);
         order.setCreateTime(LocalDateTime.now());
         order.setUpdateTime(LocalDateTime.now());
         shopOrderMapper.insert(order);
@@ -174,7 +178,6 @@ public class OrderServiceImpl implements IOrderService {
             oi.setPriceCent(p.getPriceCent());
             orderItemMapper.insert(oi);
         }
-        cartMapper.delete(Wrappers.<Cart>lambdaQuery().eq(Cart::getUserId, uid));
         return Result.ok(order.getId());
     }
 
@@ -281,6 +284,7 @@ public class OrderServiceImpl implements IOrderService {
         order.setDiscountCent(discountCent);
         order.setUserCouponId(userCouponId);
         order.setStatus(ORDER_CREATED);
+        order.setFromCart(0);
         order.setCreateTime(LocalDateTime.now());
         order.setUpdateTime(LocalDateTime.now());
         shopOrderMapper.insert(order);
@@ -300,7 +304,87 @@ public class OrderServiceImpl implements IOrderService {
         Page<ShopOrder> page = Page.of(current, size);
         var p = shopOrderMapper.selectPage(page,
                 Wrappers.<ShopOrder>lambdaQuery().eq(ShopOrder::getUserId, uid).orderByDesc(ShopOrder::getCreateTime));
-        return Result.ok(p.getRecords(), p.getTotal());
+        List<ShopOrder> records = p.getRecords();
+        if (records.isEmpty()) {
+            return Result.ok(List.of(), p.getTotal());
+        }
+        List<Long> orderIds = records.stream().map(ShopOrder::getId).toList();
+        List<OrderItem> allItems = orderItemMapper.selectList(
+                Wrappers.<OrderItem>lambdaQuery()
+                        .in(OrderItem::getOrderId, orderIds)
+                        .orderByAsc(OrderItem::getId));
+        Map<Long, List<OrderItem>> byOrder = new LinkedHashMap<>();
+        for (Long oid : orderIds) {
+            byOrder.put(oid, new ArrayList<>());
+        }
+        for (OrderItem oi : allItems) {
+            List<OrderItem> lst = byOrder.get(oi.getOrderId());
+            if (lst != null) {
+                lst.add(oi);
+            }
+        }
+        List<Long> productIds = allItems.stream()
+                .map(OrderItem::getProductId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, Product> productMap = productIds.isEmpty()
+                ? Map.of()
+                : productService.listByIds(productIds).stream()
+                        .filter(Objects::nonNull)
+                        .filter(pr -> pr.getId() != null)
+                        .collect(Collectors.toMap(Product::getId, pr -> pr, (a, b) -> a));
+
+        List<OrderListRowVO> rows = new ArrayList<>();
+        for (ShopOrder order : records) {
+            List<OrderItem> items = byOrder.getOrDefault(order.getId(), List.of());
+            List<OrderListProductPreviewVO> previews = new ArrayList<>();
+            String listTitle;
+            if (items.isEmpty()) {
+                listTitle = "订单";
+            } else if (items.size() == 1) {
+                OrderItem oi = items.getFirst();
+                Product prod = productMap.get(oi.getProductId());
+                String title = prod != null ? prod.getTitle() : ("商品#" + oi.getProductId());
+                int q = oi.getQuantity() != null ? oi.getQuantity() : 0;
+                listTitle = q > 1 ? title + " ×" + q : title;
+                previews.add(buildOrderListPreview(oi, prod));
+            } else {
+                OrderItem first = items.getFirst();
+                Product prod0 = productMap.get(first.getProductId());
+                String firstTitle = prod0 != null ? prod0.getTitle() : ("商品#" + first.getProductId());
+                int totalPieces = items.stream()
+                        .mapToInt(oi -> oi.getQuantity() != null ? oi.getQuantity() : 0)
+                        .sum();
+                int n = totalPieces > 0 ? totalPieces : items.size();
+                listTitle = firstTitle + " 等共 " + n + " 件";
+                for (OrderItem oi : items) {
+                    previews.add(buildOrderListPreview(oi, productMap.get(oi.getProductId())));
+                }
+            }
+            rows.add(OrderListRowVO.builder()
+                    .id(order.getId())
+                    .totalCent(order.getTotalCent())
+                    .payCent(order.getPayCent())
+                    .discountCent(order.getDiscountCent())
+                    .status(order.getStatus())
+                    .sellerSettled(order.getSellerSettled())
+                    .payTime(order.getPayTime())
+                    .createTime(order.getCreateTime())
+                    .listTitle(listTitle)
+                    .products(previews)
+                    .build());
+        }
+        return Result.ok(rows, p.getTotal());
+    }
+
+    private static OrderListProductPreviewVO buildOrderListPreview(OrderItem oi, Product prod) {
+        Long pid = oi.getProductId();
+        return OrderListProductPreviewVO.builder()
+                .productId(pid)
+                .title(prod != null ? prod.getTitle() : ("商品#" + pid))
+                .cover(prod != null ? prod.getCover() : null)
+                .build();
     }
 
     @Override
@@ -370,31 +454,33 @@ public class OrderServiceImpl implements IOrderService {
         return !order.getCreateTime().plusMinutes(PAY_TIMEOUT_MINUTES).isBefore(LocalDateTime.now());
     }
 
-    private void restoreCartFromOrder(Long userId, Long orderId) {
+    /**
+     * 购物车订单支付成功：按订单明细从购物车扣减件数（无行或件数已变则尽量扣减，避免误动「立即购买」订单的购物车）。
+     */
+    private void removePaidOrderItemsFromCart(Long userId, Long orderId) {
         List<OrderItem> items = orderItemMapper.selectList(
                 Wrappers.<OrderItem>lambdaQuery().eq(OrderItem::getOrderId, orderId));
+        LocalDateTime now = LocalDateTime.now();
         for (OrderItem oi : items) {
-            int q = oi.getQuantity() != null ? oi.getQuantity() : 0;
-            if (q <= 0) {
+            int paidQ = oi.getQuantity() != null ? oi.getQuantity() : 0;
+            if (paidQ <= 0) {
                 continue;
             }
             Cart ex = cartMapper.selectOne(Wrappers.<Cart>lambdaQuery()
                     .eq(Cart::getUserId, userId)
                     .eq(Cart::getProductId, oi.getProductId())
                     .last("LIMIT 1"));
-            if (ex != null) {
-                int nq = (ex.getQuantity() != null ? ex.getQuantity() : 0) + q;
-                ex.setQuantity(nq);
-                ex.setUpdateTime(LocalDateTime.now());
-                cartMapper.updateById(ex);
+            if (ex == null) {
+                continue;
+            }
+            int cartQ = ex.getQuantity() != null ? ex.getQuantity() : 0;
+            int newQ = cartQ - paidQ;
+            if (newQ <= 0) {
+                cartMapper.deleteById(ex.getId());
             } else {
-                Cart c = new Cart();
-                c.setUserId(userId);
-                c.setProductId(oi.getProductId());
-                c.setQuantity(q);
-                c.setCreateTime(LocalDateTime.now());
-                c.setUpdateTime(LocalDateTime.now());
-                cartMapper.insert(c);
+                ex.setQuantity(newQ);
+                ex.setUpdateTime(now);
+                cartMapper.updateById(ex);
             }
         }
     }
@@ -470,6 +556,9 @@ public class OrderServiceImpl implements IOrderService {
         order.setSellerSettled(0);
         order.setUpdateTime(paidAt);
         shopOrderMapper.updateById(order);
+        if (Objects.equals(order.getFromCart(), 1)) {
+            removePaidOrderItemsFromCart(uid, orderId);
+        }
         return Result.ok(order.getId());
     }
 
@@ -544,7 +633,6 @@ public class OrderServiceImpl implements IOrderService {
             o.setStatus(ORDER_CANCELLED);
             o.setUpdateTime(LocalDateTime.now());
             shopOrderMapper.updateById(o);
-            restoreCartFromOrder(o.getUserId(), o.getId());
         }
         return list.size();
     }
@@ -568,7 +656,6 @@ public class OrderServiceImpl implements IOrderService {
         order.setStatus(ORDER_CANCELLED);
         order.setUpdateTime(LocalDateTime.now());
         shopOrderMapper.updateById(order);
-        restoreCartFromOrder(uid, orderId);
         return Result.ok();
     }
 

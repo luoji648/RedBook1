@@ -5,4 +5,5 @@ aliyun:
     access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
     bucket-name: ${ALIYUN_OSS_BUCKET:}
     url-prefix: ${ALIYUN_OSS_URL_PREFIX:}
-    object-public-read: ${ALIYUN_OSS_OBJECT_PUBLIC_READ:true}
+    # 默认 false：新版 Bucket 常「禁用 ACL」，为 true 时预签名带 x-oss-object-acl 易导致 PUT 403（前端仅提示「上传失败」）
+    object-public-read: ${ALIYUN_OSS_OBJECT_PUBLIC_READ:false}

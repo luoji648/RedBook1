@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -88,23 +89,26 @@ public class NoticeServiceImpl implements INoticeService {
         Set<Long> uids = new HashSet<>();
         Set<Long> nids = new HashSet<>();
         for (InteractionRow r : rows) {
-            uids.add(r.getActorId());
+            if (r.getActorId() != null) {
+                uids.add(r.getActorId());
+            }
             if (r.getNoteId() != null) {
                 nids.add(r.getNoteId());
             }
         }
-        Map<Long, User> userMap = uids.isEmpty() ? Map.of() : userMapper.selectBatchIds(uids).stream()
+        // 勿用 Map.of()：关注类通知 noteId 为 null，对 Map.of() 做 get(null) 会触发 ImmutableCollections NPE
+        Map<Long, User> userMap = uids.isEmpty() ? Collections.emptyMap() : userMapper.selectBatchIds(uids).stream()
                 .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
-        Map<Long, Note> noteMap = nids.isEmpty() ? Map.of() : noteMapper.selectBatchIds(nids).stream()
+        Map<Long, Note> noteMap = nids.isEmpty() ? Collections.emptyMap() : noteMapper.selectBatchIds(nids).stream()
                 .collect(Collectors.toMap(Note::getId, n -> n, (a, b) -> a));
 
         List<Map<String, Object>> list = new ArrayList<>();
         for (InteractionRow r : rows) {
             Map<String, Object> item = new HashMap<>();
-            item.put("type", r.getType());
+            item.put("type", r.getInteractionType());
             item.put("eventTime", r.getEventTime());
             item.put("noteId", r.getNoteId());
-            User u = userMap.get(r.getActorId());
+            User u = r.getActorId() != null ? userMap.get(r.getActorId()) : null;
             if (u != null) {
                 Map<String, Object> actor = new HashMap<>();
                 actor.put("id", u.getId());
@@ -112,7 +116,7 @@ public class NoticeServiceImpl implements INoticeService {
                 actor.put("icon", u.getIcon());
                 item.put("actor", actor);
             }
-            Note n = noteMap.get(r.getNoteId());
+            Note n = r.getNoteId() != null ? noteMap.get(r.getNoteId()) : null;
             item.put("noteTitle", n != null ? n.getTitle() : "");
             list.add(item);
         }

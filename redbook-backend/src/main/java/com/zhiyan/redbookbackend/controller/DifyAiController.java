@@ -4,10 +4,8 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.zhiyan.redbookbackend.dto.resp.StreamResponse;
 import com.zhiyan.redbookbackend.entity.Note;
 import com.zhiyan.redbookbackend.entity.NoteComment;
-import com.zhiyan.redbookbackend.entity.User;
 import com.zhiyan.redbookbackend.mapper.NoteCommentMapper;
 import com.zhiyan.redbookbackend.mapper.NoteMapper;
-import com.zhiyan.redbookbackend.mapper.UserMapper;
 import com.zhiyan.redbookbackend.service.DifyService;
 import com.zhiyan.redbookbackend.util.UserHolder;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,10 +17,8 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Tag(name = "AI 助手（Dify）")
@@ -36,8 +32,6 @@ public class DifyAiController {
     private NoteMapper noteMapper;
     @Resource
     private NoteCommentMapper noteCommentMapper;
-    @Resource
-    private UserMapper userMapper;
 
     @Value("${dify.key.note-assistant}")
     private String noteAssistantKey;
@@ -68,21 +62,9 @@ public class DifyAiController {
                                     .eq(NoteComment::getParentId, 0L))
                             .orderByAsc(NoteComment::getCreateTime)
                             .last("LIMIT 10"));
-            Set<Long> uids = new HashSet<>();
-            for (NoteComment c : comments) {
-                if (c.getUserId() != null) {
-                    uids.add(c.getUserId());
-                }
-            }
-            Map<Long, String> nickById = new HashMap<>();
-            if (!uids.isEmpty()) {
-                for (User u : userMapper.selectBatchIds(uids)) {
-                    String n = u.getNickName();
-                    nickById.put(u.getId(), (n != null && !n.isBlank()) ? n : ("用户" + u.getId()));
-                }
-            }
             commentsText = comments.stream()
-                    .map(c -> nickById.getOrDefault(c.getUserId(), "用户" + c.getUserId()) + ":" + c.getContent())
+                    .map(NoteComment::getContent)
+                    .filter(s -> s != null && !s.isBlank())
                     .collect(Collectors.joining("\n"));
         }
         StringBuilder ctx = new StringBuilder(postContent);

@@ -3,7 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { groupMeta, groupUpdateProfile, fetchMe, ossPresign } from '../api'
+import { groupMeta, groupUpdateProfile, fetchMe } from '../api'
+import { formatOssUploadError, uploadAvatarViaApi } from '../utils/ossUpload'
+import { beforeUploadAvatarImage } from '../utils/avatarImageUpload'
 
 const DEFAULT_AVATAR =
   'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
@@ -62,29 +64,21 @@ async function load() {
   }
 }
 
+function onBeforeGroupAvatarUpload(rawFile) {
+  return beforeUploadAvatarImage(rawFile, ElMessage)
+}
+
 async function handleUpload(opt) {
   const { file, onError } = opt
   const raw = file.raw ?? file
   uploading.value = true
   try {
-    const ext = '.' + (String(raw.name || 'image.jpg').split('.').pop() || 'jpg')
-    const contentType = raw.type || 'application/octet-stream'
-    const { data } = await ossPresign(ext, contentType)
-    const headers = { 'Content-Type': contentType }
-    if (data.putAclPublicRead) {
-      headers['x-oss-object-acl'] = 'public-read'
-    }
-    const putRes = await fetch(data.uploadUrl, {
-      method: 'PUT',
-      body: raw,
-      headers,
-    })
-    if (!putRes.ok) throw new Error('上传失败')
+    const data = await uploadAvatarViaApi(raw)
     customAvatarUrl.value = data.publicUrl
     ElMessage.success('头像已更新')
     opt.onSuccess?.(data)
   } catch (e) {
-    ElMessage.error(e.message || '上传失败')
+    ElMessage.error(formatOssUploadError(e))
     onError(e)
   } finally {
     uploading.value = false
@@ -131,6 +125,7 @@ onMounted(async () => {
         class="av-uploader"
         :show-file-list="false"
         accept="image/*"
+        :before-upload="onBeforeGroupAvatarUpload"
         :http-request="handleUpload"
         :disabled="uploading"
       >

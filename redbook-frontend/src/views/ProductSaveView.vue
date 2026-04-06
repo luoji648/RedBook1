@@ -3,6 +3,7 @@ import { ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { productGet, productSave, ossPresign } from '../api'
+import { formatOssUploadError, ossPutFailMessage } from '../utils/ossUpload'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,11 +31,11 @@ async function handleCoverUpload({ file, onError }) {
       body: file,
       headers,
     })
-    if (!putRes.ok) throw new Error('上传失败')
+    if (!putRes.ok) throw new Error(ossPutFailMessage(putRes))
     cover.value = data.publicUrl || ''
     ElMessage.success('封面已上传')
   } catch (e) {
-    ElMessage.error(e.message || '上传失败')
+    ElMessage.error(formatOssUploadError(e))
     onError(e)
   } finally {
     uploading.value = false

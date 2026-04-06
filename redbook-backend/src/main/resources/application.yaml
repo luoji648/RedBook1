@@ -3,6 +3,10 @@ server:
 spring:
   application:
     name: redbook-backend
+  servlet:
+    multipart:
+      max-file-size: 12MB
+      max-request-size: 12MB
   profiles:
     active: dev
   datasource:

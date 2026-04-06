@@ -10,8 +10,9 @@ import {
   updateUserInfo,
   changePassword,
   logout,
-  ossPresign,
 } from '../api'
+import { formatOssUploadError, uploadAvatarViaApi } from '../utils/ossUpload'
+import { beforeUploadAvatarImage } from '../utils/avatarImageUpload'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
@@ -23,7 +24,13 @@ const uploadingAvatar = ref(false)
 const city = ref('')
 const introduce = ref('')
 const gender = ref(true)
+/** 须严格早于 2026-01-01 */
+const BIRTHDAY_MAX_EXCLUSIVE = new Date(2026, 0, 1)
 const birthday = ref('')
+
+function disabledBirthdayDate(d) {
+  return d.getTime() >= BIRTHDAY_MAX_EXCLUSIVE.getTime()
+}
 const collectPublic = ref(false)
 const likePublic = ref(false)
 const oldPassword = ref('')
@@ -57,29 +64,21 @@ async function saveProfile() {
   }
 }
 
+function onBeforeAvatarUpload(rawFile) {
+  return beforeUploadAvatarImage(rawFile, ElMessage)
+}
+
 async function handleAvatarUpload(opt) {
   const { file, onError } = opt
   const raw = file.raw ?? file
   uploadingAvatar.value = true
   try {
-    const ext = '.' + (String(raw.name || 'image.jpg').split('.').pop() || 'jpg')
-    const contentType = raw.type || 'application/octet-stream'
-    const { data } = await ossPresign(ext, contentType)
-    const headers = { 'Content-Type': contentType }
-    if (data.putAclPublicRead) {
-      headers['x-oss-object-acl'] = 'public-read'
-    }
-    const putRes = await fetch(data.uploadUrl, {
-      method: 'PUT',
-      body: raw,
-      headers,
-    })
-    if (!putRes.ok) throw new Error('上传失败')
+    const data = await uploadAvatarViaApi(raw)
     icon.value = data.publicUrl
     ElMessage.success('上传成功，请点击「保存资料」')
     opt.onSuccess?.(data)
   } catch (e) {
-    ElMessage.error(e.message || '上传失败')
+    ElMessage.error(formatOssUploadError(e))
     onError(e)
   } finally {
     uploadingAvatar.value = false
@@ -92,6 +91,10 @@ function clearAvatar() {
 }
 
 async function saveInfo() {
+  if (birthday.value && birthday.value >= '2026-01-01') {
+    ElMessage.error('生日须为 2026-01-01 之前的日期')
+    return
+  }
   try {
     await updateUserInfo({
       city: city.value,
@@ -149,6 +152,7 @@ onMounted(load)
             class="av-uploader"
             :show-file-list="false"
             accept="image/*"
+            :before-upload="onBeforeAvatarUpload"
             :http-request="handleAvatarUpload"
             :disabled="uploadingAvatar"
           >
@@ -185,7 +189,15 @@ onMounted(load)
         <el-switch v-model="gender" active-text="男" inactive-text="女" />
       </el-form-item>
       <el-form-item label="生日">
-        <el-input v-model="birthday" placeholder="YYYY-MM-DD" />
+        <el-date-picker
+          v-model="birthday"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="选择生日"
+          :disabled-date="disabledBirthdayDate"
+          style="width: 100%; max-width: 280px"
+        />
+        <span class="tip">须早于 2026-01-01</span>
       </el-form-item>
       <el-form-item label="公开收藏">
         <el-switch v-model="collectPublic" active-text="公开" inactive-text="仅自己" />

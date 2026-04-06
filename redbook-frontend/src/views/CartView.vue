@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { cartMy, productGet, cartUpdate, cartRemove, orderCreate, couponMy } from '../api'
+import { isProductOnShelf, PRODUCT_OFF_SHELF_MSG } from '../utils/productShelf'
 import PayPasswordDialog from '../components/PayPasswordDialog.vue'
 
 const router = useRouter()
@@ -127,8 +128,16 @@ const estimatedDiscount = computed(() => {
 
 const estimatedPay = computed(() => Math.max(0, totalCent.value - estimatedDiscount.value))
 
+const hasOffShelfInCart = computed(() =>
+  lines.value.some((row) => row.product != null && !isProductOnShelf(row.product))
+)
+
 async function checkout() {
   if (!lines.value.length) return
+  if (hasOffShelfInCart.value) {
+    ElMessage.warning(PRODUCT_OFF_SHELF_MSG)
+    return
+  }
   try {
     await ElMessageBox.confirm('将生成待支付订单，确认后在下一步输入支付密码完成扣款。', '结算下单')
     const body = {}
@@ -138,7 +147,6 @@ async function checkout() {
     const { data: orderId } = await orderCreate(body)
     pendingOrderId.value = orderId
     pwdVisible.value = true
-    lines.value = []
     selectedCouponId.value = null
     await loadCoupons()
     await load()
@@ -147,9 +155,11 @@ async function checkout() {
   }
 }
 
-function onCartPwdPaid(orderId) {
+async function onCartPwdPaid(orderId) {
   pendingOrderId.value = null
   ElMessage.success('支付成功，订单号 ' + orderId)
+  await loadCoupons()
+  await load()
 }
 
 function onCartPwdCancelled(orderId) {
@@ -175,6 +185,7 @@ onMounted(async () => {
         <img v-if="row.product?.cover" :src="row.product.cover" alt="" class="cov" />
         <div class="info">
           <div class="t">{{ row.product?.title || '商品' + row.cart.productId }}</div>
+          <div v-if="row.product && !isProductOnShelf(row.product)" class="off-line">{{ PRODUCT_OFF_SHELF_MSG }}</div>
           <div class="p">¥{{ yuan(row.product?.priceCent) }} × {{ row.cart.quantity }}</div>
           <el-input-number
             :model-value="row.cart.quantity"
@@ -214,7 +225,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <el-button type="primary" class="full" @click="checkout">结算下单</el-button>
+      <el-button type="primary" class="full" :disabled="hasOffShelfInCart" @click="checkout">结算下单</el-button>
     </div>
 
     <PayPasswordDialog
@@ -258,6 +269,12 @@ h2 {
 }
 .t {
   font-weight: 600;
+}
+.off-line {
+  font-size: 12px;
+  color: #909399;
+  font-weight: 600;
+  margin-top: 4px;
 }
 .p {
   color: #ff2442;

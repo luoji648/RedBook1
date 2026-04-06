@@ -3,6 +3,7 @@ import { ref, watch, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { saveNote, ossPresign, productList, noteDetail, noteMy } from '../api'
+import { formatOssUploadError, ossPutFailMessage } from '../utils/ossUpload'
 
 const route = useRoute()
 const router = useRouter()
@@ -53,11 +54,11 @@ async function handleUpload({ file, onError }) {
       body: file,
       headers,
     })
-    if (!putRes.ok) throw new Error('上传失败')
+    if (!putRes.ok) throw new Error(ossPutFailMessage(putRes))
     mediaUrls.value.push(data.publicUrl)
     ElMessage.success('已上传')
   } catch (e) {
-    ElMessage.error(e.message || '上传失败')
+    ElMessage.error(formatOssUploadError(e))
     onError(e)
   } finally {
     uploading.value = false

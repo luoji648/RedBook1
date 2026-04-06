@@ -4,7 +4,9 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Star, User, ChatLineRound, Plus } from '@element-plus/icons-vue'
-import { chatThreads, fetchMe, groupMy, groupCreate, ossPresign } from '../api'
+import { chatThreads, fetchMe, groupMy, groupCreate } from '../api'
+import { formatOssUploadError, uploadAvatarViaApi } from '../utils/ossUpload'
+import { beforeUploadAvatarImage } from '../utils/avatarImageUpload'
 import { useMessageUnreadStore } from '../stores/messageUnread'
 
 const router = useRouter()
@@ -35,29 +37,21 @@ function openCreateGroupDialog() {
   createDlg.value = true
 }
 
+function onBeforeCreateAvatarUpload(rawFile) {
+  return beforeUploadAvatarImage(rawFile, ElMessage)
+}
+
 async function handleCreateAvatarUpload(opt) {
   const { file, onError } = opt
   const raw = file.raw ?? file
   createUploading.value = true
   try {
-    const ext = '.' + (String(raw.name || 'image.jpg').split('.').pop() || 'jpg')
-    const contentType = raw.type || 'application/octet-stream'
-    const { data } = await ossPresign(ext, contentType)
-    const headers = { 'Content-Type': contentType }
-    if (data.putAclPublicRead) {
-      headers['x-oss-object-acl'] = 'public-read'
-    }
-    const putRes = await fetch(data.uploadUrl, {
-      method: 'PUT',
-      body: raw,
-      headers,
-    })
-    if (!putRes.ok) throw new Error('上传失败')
+    const data = await uploadAvatarViaApi(raw)
     createForm.value.avatar = data.publicUrl
     ElMessage.success('头像已上传')
     opt.onSuccess?.(data)
   } catch (e) {
-    ElMessage.error(e.message || '上传失败')
+    ElMessage.error(formatOssUploadError(e))
     onError(e)
   } finally {
     createUploading.value = false
@@ -95,6 +89,20 @@ function goNotice(slug) {
 function peer(t) {
   if (!myId.value) return null
   return t.userLow === myId.value ? t.userHigh : t.userLow
+}
+
+function peerDisplayName(t) {
+  const n = t.peerNickName?.trim()
+  if (n) return n
+  const id = peer(t)
+  return id != null ? `用户 ${id}` : '用户'
+}
+
+function peerAvatarLetter(t) {
+  const n = t.peerNickName?.trim()
+  if (n) return n.slice(0, 1)
+  const id = peer(t)
+  return id != null ? String(id).slice(-1) : '?'
 }
 
 function openThread(t) {
@@ -166,7 +174,7 @@ onMounted(() => {
           <el-icon :size="28" class="nb-icon"><ChatLineRound /></el-icon>
           <span v-if="badgeComment" class="nb-badge">{{ badgeComment }}</span>
         </div>
-        <span class="nb-text">评论和@</span>
+        <span class="nb-text">评论转发</span>
       </button>
     </div>
 
@@ -203,10 +211,11 @@ onMounted(() => {
         class="row"
         @click="openThread(t)"
       >
-        <div class="av ph">{{ peer(t) }}</div>
+        <img v-if="t.peerIcon" class="av av-img" :src="t.peerIcon" alt="" />
+        <div v-else class="av ph">{{ peerAvatarLetter(t) }}</div>
         <div class="info">
           <div class="name-line">
-            <span class="name">用户 {{ peer(t) }}</span>
+            <span class="name">{{ peerDisplayName(t) }}</span>
             <span v-if="unreadBadgeText(t.unreadCount)" class="row-badge">{{ unreadBadgeText(t.unreadCount) }}</span>
           </div>
           <div class="time">{{ t.lastMsgTime || '' }}</div>
@@ -222,6 +231,7 @@ onMounted(() => {
               class="create-av-uploader"
               :show-file-list="false"
               accept="image/*"
+              :before-upload="onBeforeCreateAvatarUpload"
               :http-request="handleCreateAvatarUpload"
               :disabled="createUploading"
             >

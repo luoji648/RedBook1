@@ -70,7 +70,7 @@ public class OrderController {
     /**
      * 支持两种路径：{@code /{id}/close} 为主（避免少数环境下路径解析问题）；{@code /close/{id}} 兼容旧调用。
      */
-    @Operation(summary = "关闭订单（仅待支付）：取消订单并将商品恢复回购物车")
+    @Operation(summary = "关闭订单（仅待支付）：取消订单；购物车商品仅在支付成功后才移除")
     @PostMapping({"/{id}/close", "/close/{id}"})
     public Result close(@PathVariable("id") Long id) {
         return orderService.close(id);

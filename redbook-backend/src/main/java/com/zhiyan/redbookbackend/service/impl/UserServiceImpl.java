@@ -264,6 +264,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             info.setGender(dto.getGender());
         }
         if (dto.getBirthday() != null) {
+            LocalDate birthdayMaxExclusive = LocalDate.of(2026, 1, 1);
+            if (!dto.getBirthday().isBefore(birthdayMaxExclusive)) {
+                return Result.fail("生日须为 2026-01-01 之前的日期");
+            }
             info.setBirthday(dto.getBirthday());
         }
         if (dto.getCollectPublic() != null) {
@@ -333,19 +337,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     @Override
     public Result signCount() {
         Long userId = UserHolder.getUser().getId();
-        LocalDateTime now = LocalDateTime.now();
-        String keySuffix = now.format(DateTimeFormatter.ofPattern(":yyyy/MM"));
+        LocalDate today = LocalDate.now();
+        String keySuffix = today.format(DateTimeFormatter.ofPattern(":yyyy/MM"));
         String key = RedisConstants.USER_SIGN_KEY + userId + keySuffix;
-        int dayOfMonth = now.getDayOfMonth();
-        // 与 sign() 一致使用 getBit，避免 BITFIELD GET 与 SETBIT/GETBIT 位序理解不一致导致恒为 0
+        int throughDay = today.getDayOfMonth();
+        // 本月 1 号～今天（含）共有几天已签到；与 sign() 同 key、位序（日-1）
         int cnt = 0;
-        for (int d = dayOfMonth; d >= 1; d--) {
+        for (int d = 1; d <= throughDay; d++) {
             int bitIdx = d - 1;
-            Boolean bit = stringRedisTemplate.opsForValue().getBit(key, bitIdx);
-            if (Boolean.TRUE.equals(bit)) {
+            if (Boolean.TRUE.equals(stringRedisTemplate.opsForValue().getBit(key, bitIdx))) {
                 cnt++;
-            } else {
-                break;
             }
         }
         return Result.ok(cnt);

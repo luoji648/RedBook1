@@ -9,6 +9,7 @@ import {
   couponClaimFollow,
   productGet,
 } from '../api'
+import { isProductOnShelf, PRODUCT_OFF_SHELF_MSG } from '../utils/productShelf'
 import PayPasswordDialog from './PayPasswordDialog.vue'
 
 const props = defineProps({
@@ -122,6 +123,10 @@ async function claim() {
     router.push({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
     return
   }
+  if (offShelf.value) {
+    ElMessage.warning(PRODUCT_OFF_SHELF_MSG)
+    return
+  }
   claiming.value = true
   try {
     const body = { productId: Number(props.productId) }
@@ -151,6 +156,10 @@ function goWallet() {
 async function pay() {
   if (!auth.token) {
     router.push({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
+    return
+  }
+  if (offShelf.value) {
+    ElMessage.warning(PRODUCT_OFF_SHELF_MSG)
     return
   }
   const pid = Number(props.productId)
@@ -210,6 +219,9 @@ const displayPrice = computed(
   () =>
     productSnap.value?.priceCent ?? preview.value?.priceCent ?? props.productHint?.priceCent ?? 0
 )
+
+const mergedProduct = computed(() => productSnap.value ?? props.productHint ?? null)
+const offShelf = computed(() => mergedProduct.value != null && !isProductOnShelf(mergedProduct.value))
 </script>
 
 <template>
@@ -222,6 +234,7 @@ const displayPrice = computed(
   >
     <div v-if="loading && !productSnap && !productHint" class="muted">加载中…</div>
     <template v-else>
+      <el-alert v-if="offShelf" type="warning" :closable="false" class="off-alert" :title="PRODUCT_OFF_SHELF_MSG" />
       <div class="row">
         <img v-if="displayCover" :src="displayCover" alt="" class="cov" />
         <div class="meta">
@@ -237,7 +250,7 @@ const displayPrice = computed(
       </div>
 
       <template v-if="auth.token">
-        <el-alert v-if="!preview && !loading" type="error" :closable="false" class="hint">
+        <el-alert v-if="!preview && !loading && !offShelf" type="error" :closable="false" class="hint">
           <template #title>支付信息加载失败</template>
           <p class="err-desc">
             请确认后端已更新并启动；前端请用 <code>npm run dev</code>，或使用已带 API 代理的
@@ -291,7 +304,7 @@ const displayPrice = computed(
           type="primary"
           class="pay-btn"
           :loading="paying"
-          :disabled="!preview || !balanceOk"
+          :disabled="!preview || !balanceOk || offShelf"
           @click="pay"
         >
           确认支付
@@ -354,6 +367,9 @@ const displayPrice = computed(
 }
 .hint {
   margin-bottom: 10px;
+}
+.off-alert {
+  margin-bottom: 12px;
 }
 .claim-row {
   margin-bottom: 12px;

@@ -1,4 +1,4 @@
-import { get, post, put, del, postForm, apiBase } from './http'
+import { get, post, put, del, postForm, postMultipart, apiBase } from './http'
 
 export { apiBase }
 
@@ -167,8 +167,20 @@ export function ossPresign(ext, contentType) {
   return postForm('/oss/presign', params)
 }
 
+/** 经后端写入 OSS，避免外网环境下 OSS 未配置 CORS 时浏览器直连 PUT 失败；返回结构与预签名成功后的 data 一致（无 uploadUrl） */
+export function ossUploadViaApi(file) {
+  const fd = new FormData()
+  fd.append('file', file)
+  return postMultipart('/oss/upload', fd)
+}
+
 export function productList(params) {
   return get('/product/list', params)
+}
+
+/** 当前卖家自己的商品分页（需登录） */
+export function productMy(params) {
+  return get('/product/my', params)
 }
 
 export function productGet(id) {
@@ -178,6 +190,11 @@ export function productGet(id) {
 /** 新建或更新商品（需登录），body 见 ProductSaveDTO */
 export function productSave(body) {
   return post('/product/save', body)
+}
+
+/** 调整已上架商品库存（需登录），body: { stock } */
+export function productUpdateStock(productId, body) {
+  return put(`/product/${productId}/stock`, body)
 }
 
 export function cartAdd(productId, quantity) {

@@ -5,6 +5,7 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { productGet, cartAdd } from '../api'
 import DirectPayDialog from '../components/DirectPayDialog.vue'
+import { isProductOnShelf, PRODUCT_OFF_SHELF_MSG } from '../utils/productShelf'
 import { recordProductFootprint } from '../utils/productFootprint'
 
 const route = useRoute()
@@ -35,6 +36,10 @@ function yuan(cent) {
 }
 
 async function addCart() {
+  if (!isProductOnShelf(p.value)) {
+    ElMessage.warning(PRODUCT_OFF_SHELF_MSG)
+    return
+  }
   try {
     await cartAdd(p.value.id, 1)
     ElMessage.success('已加入购物车')
@@ -44,6 +49,10 @@ async function addCart() {
 }
 
 function openPay() {
+  if (!isProductOnShelf(p.value)) {
+    ElMessage.warning(PRODUCT_OFF_SHELF_MSG)
+    return
+  }
   payOpen.value = true
 }
 
@@ -64,9 +73,14 @@ watch(id, () => {
     <h1>{{ p.title }}</h1>
     <div class="price">¥{{ yuan(p.priceCent) }}</div>
     <div class="stock">库存 {{ p.stock ?? 0 }}</div>
+    <div v-if="!isProductOnShelf(p)" class="off-shelf">{{ PRODUCT_OFF_SHELF_MSG }}</div>
     <div class="btns">
-      <el-button type="primary" size="large" class="half" @click="addCart">加入购物车</el-button>
-      <el-button type="danger" size="large" class="half" plain @click="openPay">立即支付</el-button>
+      <el-button type="primary" size="large" class="half" :disabled="!isProductOnShelf(p)" @click="addCart">
+        加入购物车
+      </el-button>
+      <el-button type="danger" size="large" class="half" plain :disabled="!isProductOnShelf(p)" @click="openPay">
+        立即支付
+      </el-button>
     </div>
     <DirectPayDialog v-model="payOpen" :product-id="p.id" :product-hint="p" @paid="() => router.push({ name: 'orders' })" />
   </div>
@@ -109,7 +123,13 @@ h1 {
 }
 .stock {
   color: #999;
-  margin: 8px 0 24px;
+  margin: 8px 0 8px;
+}
+.off-shelf {
+  color: #909399;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 20px;
 }
 .btns {
   display: flex;

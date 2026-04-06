@@ -35,6 +35,8 @@ public class MvcConfig implements WebMvcConfigurer {
             "/product/footprint/**",
             "/product/save",
             "/product/admin",
+            "/product/my",
+            "/product/*/stock",
             "/wallet/**",
     };
 

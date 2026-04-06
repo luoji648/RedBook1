@@ -54,7 +54,7 @@ public class UserController {
         return userService.sign();
     }
 
-    @Operation(summary = "连续签到天数（本月 BitMap，自今日向前连续）")
+    @Operation(summary = "本月签到天数（当月 1 号至今天，含今天，统计已签到的自然日数）")
     @GetMapping("/sign/count")
     public Result signCount() {
         return userService.signCount();

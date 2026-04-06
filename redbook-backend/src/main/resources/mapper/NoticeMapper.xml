@@ -2,22 +2,29 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zhiyan.redbookbackend.mapper.NoticeMapper">
 
+    <!-- 关注通知无 noteId：不显式 SELECT NULL，避免部分驱动对 NULL 列类型推断异常导致映射失败/500 -->
+    <resultMap id="FollowNoticeRowMap" type="com.zhiyan.redbookbackend.dto.resp.InteractionRow">
+        <result column="interaction_type" property="interactionType"/>
+        <result column="actor_id" property="actorId"/>
+        <result column="event_time" property="eventTime"/>
+    </resultMap>
+
     <select id="listInteractions" resultType="com.zhiyan.redbookbackend.dto.resp.InteractionRow">
         <![CDATA[
-        SELECT type, actor_id AS actorId, note_id AS noteId, event_time AS eventTime FROM (
-          SELECT 'LIKE' AS type, nl.user_id AS actor_id, nl.note_id AS note_id, nl.create_time AS event_time
+        SELECT interaction_type, actor_id AS actorId, note_id AS noteId, event_time AS eventTime FROM (
+          SELECT 'LIKE' AS interaction_type, nl.user_id AS actor_id, nl.note_id AS note_id, nl.create_time AS event_time
           FROM tb_note_like nl INNER JOIN tb_note n ON n.id = nl.note_id
           WHERE n.user_id = #{ownerId} AND nl.user_id <> n.user_id
           UNION ALL
-          SELECT 'COLLECT' AS type, nc.user_id AS actor_id, nc.note_id AS note_id, nc.create_time AS event_time
+          SELECT 'COLLECT' AS interaction_type, nc.user_id AS actor_id, nc.note_id AS note_id, nc.create_time AS event_time
           FROM tb_note_collect nc INNER JOIN tb_note n ON n.id = nc.note_id
           WHERE n.user_id = #{ownerId} AND nc.user_id <> n.user_id
           UNION ALL
-          SELECT 'COMMENT' AS type, c.user_id AS actor_id, c.note_id AS note_id, c.create_time AS event_time
+          SELECT 'COMMENT' AS interaction_type, c.user_id AS actor_id, c.note_id AS note_id, c.create_time AS event_time
           FROM tb_note_comment c INNER JOIN tb_note n ON n.id = c.note_id
           WHERE n.user_id = #{ownerId} AND c.user_id <> n.user_id AND c.status = 0
           UNION ALL
-          SELECT 'SHARE' AS type, sl.creator_user_id AS actor_id, sl.note_id AS note_id, sl.create_time AS event_time
+          SELECT 'SHARE' AS interaction_type, sl.creator_user_id AS actor_id, sl.note_id AS note_id, sl.create_time AS event_time
           FROM tb_share_link sl INNER JOIN tb_note n ON n.id = sl.note_id
           WHERE n.user_id = #{ownerId} AND sl.creator_user_id <> n.user_id
         ) t
@@ -46,12 +53,12 @@
 
     <select id="listLikeCollect" resultType="com.zhiyan.redbookbackend.dto.resp.InteractionRow">
         <![CDATA[
-        SELECT type, actor_id AS actorId, note_id AS noteId, event_time AS eventTime FROM (
-          SELECT 'LIKE' AS type, nl.user_id AS actor_id, nl.note_id AS note_id, nl.create_time AS event_time
+        SELECT interaction_type, actor_id AS actorId, note_id AS noteId, event_time AS eventTime FROM (
+          SELECT 'LIKE' AS interaction_type, nl.user_id AS actor_id, nl.note_id AS note_id, nl.create_time AS event_time
           FROM tb_note_like nl INNER JOIN tb_note n ON n.id = nl.note_id
           WHERE n.user_id = #{ownerId} AND nl.user_id <> n.user_id
           UNION ALL
-          SELECT 'COLLECT' AS type, nc.user_id AS actor_id, nc.note_id AS note_id, nc.create_time AS event_time
+          SELECT 'COLLECT' AS interaction_type, nc.user_id AS actor_id, nc.note_id AS note_id, nc.create_time AS event_time
           FROM tb_note_collect nc INNER JOIN tb_note n ON n.id = nc.note_id
           WHERE n.user_id = #{ownerId} AND nc.user_id <> n.user_id
         ) t
@@ -74,12 +81,12 @@
 
     <select id="listCommentShare" resultType="com.zhiyan.redbookbackend.dto.resp.InteractionRow">
         <![CDATA[
-        SELECT type, actor_id AS actorId, note_id AS noteId, event_time AS eventTime FROM (
-          SELECT 'COMMENT' AS type, c.user_id AS actor_id, c.note_id AS note_id, c.create_time AS event_time
+        SELECT interaction_type, actor_id AS actorId, note_id AS noteId, event_time AS eventTime FROM (
+          SELECT 'COMMENT' AS interaction_type, c.user_id AS actor_id, c.note_id AS note_id, c.create_time AS event_time
           FROM tb_note_comment c INNER JOIN tb_note n ON n.id = c.note_id
           WHERE n.user_id = #{ownerId} AND c.user_id <> n.user_id AND c.status = 0
           UNION ALL
-          SELECT 'SHARE' AS type, sl.creator_user_id AS actor_id, sl.note_id AS note_id, sl.create_time AS event_time
+          SELECT 'SHARE' AS interaction_type, sl.creator_user_id AS actor_id, sl.note_id AS note_id, sl.create_time AS event_time
           FROM tb_share_link sl INNER JOIN tb_note n ON n.id = sl.note_id
           WHERE n.user_id = #{ownerId} AND sl.creator_user_id <> n.user_id
         ) t
@@ -100,9 +107,11 @@
         ]]>
     </select>
 
-    <select id="listFollowNotice" resultType="com.zhiyan.redbookbackend.dto.resp.InteractionRow">
+    <select id="listFollowNotice" resultMap="FollowNoticeRowMap">
         <![CDATA[
-        SELECT 'FOLLOW' AS type, f.follower_id AS actorId, NULL AS noteId, f.create_time AS eventTime
+        SELECT 'FOLLOW' AS interaction_type,
+               f.follower_id AS actor_id,
+               f.create_time AS event_time
         FROM tb_user_follow f
         WHERE f.followee_id = #{ownerId}
         ORDER BY f.create_time DESC

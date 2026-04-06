@@ -1,6 +1,7 @@
 package com.zhiyan.redbookbackend.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -26,6 +27,9 @@ public class ShopOrder {
     private LocalDateTime payTime;
     /** 0 未结算 1 实付已按卖家入账 */
     private Integer sellerSettled;
+    /** 1 由购物车结算创建（支付成功后才从购物车扣减）；0 立即购买等 */
+    @TableField("from_cart")
+    private Integer fromCart;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

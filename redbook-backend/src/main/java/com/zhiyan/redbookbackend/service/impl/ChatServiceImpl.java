@@ -5,9 +5,11 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zhiyan.redbookbackend.dto.Result;
 import com.zhiyan.redbookbackend.entity.ChatMessage;
 import com.zhiyan.redbookbackend.entity.ChatThread;
+import com.zhiyan.redbookbackend.entity.User;
 import com.zhiyan.redbookbackend.mapper.ChatMessageMapper;
 import com.zhiyan.redbookbackend.mapper.ChatThreadMapper;
 import com.zhiyan.redbookbackend.service.IChatService;
+import com.zhiyan.redbookbackend.service.IUserService;
 import com.zhiyan.redbookbackend.util.UserHolder;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -15,9 +17,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class ChatServiceImpl implements IChatService {
@@ -26,6 +31,8 @@ public class ChatServiceImpl implements IChatService {
     private ChatThreadMapper chatThreadMapper;
     @Resource
     private ChatMessageMapper chatMessageMapper;
+    @Resource
+    private IUserService userService;
 
     @Override
     public Result threads(long current, long size) {
@@ -35,18 +42,42 @@ public class ChatServiceImpl implements IChatService {
                 Wrappers.<ChatThread>lambdaQuery()
                         .nested(w -> w.eq(ChatThread::getUserLow, me).or().eq(ChatThread::getUserHigh, me))
                         .orderByDesc(ChatThread::getLastMsgTime));
+        List<ChatThread> records = p.getRecords();
+        Set<Long> peerIds = new LinkedHashSet<>();
+        for (ChatThread t : records) {
+            long peer = me.equals(t.getUserLow()) ? t.getUserHigh() : t.getUserLow();
+            peerIds.add(peer);
+        }
+        Map<Long, User> userById = new HashMap<>();
+        if (!peerIds.isEmpty()) {
+            for (User u : userService.listByIds(peerIds)) {
+                if (u != null && u.getId() != null) {
+                    userById.put(u.getId(), u);
+                }
+            }
+        }
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (ChatThread t : p.getRecords()) {
-            rows.add(threadToRow(t, me));
+        for (ChatThread t : records) {
+            rows.add(threadToRow(t, me, userById));
         }
         return Result.ok(rows, p.getTotal());
     }
 
-    private Map<String, Object> threadToRow(ChatThread t, Long me) {
+    private Map<String, Object> threadToRow(ChatThread t, Long me, Map<Long, User> userById) {
+        long peerId = me.equals(t.getUserLow()) ? t.getUserHigh() : t.getUserLow();
+        User peer = userById.get(peerId);
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("id", t.getId());
         row.put("userLow", t.getUserLow());
         row.put("userHigh", t.getUserHigh());
+        if (peer != null) {
+            row.put("peerNickName", peer.getNickName());
+            String icon = peer.getIcon();
+            row.put("peerIcon", icon != null && !icon.isBlank() ? icon : null);
+        } else {
+            row.put("peerNickName", null);
+            row.put("peerIcon", null);
+        }
         row.put("lastMsgTime", t.getLastMsgTime());
         row.put("unreadCount", countUnreadInThread(t, me));
         return row;

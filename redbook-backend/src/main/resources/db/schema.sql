@@ -212,6 +212,7 @@ CREATE TABLE IF NOT EXISTS tb_order (
     status TINYINT NOT NULL DEFAULT 0 COMMENT '0 created 1 paid 2 cancelled 3 refunded',
     pay_time DATETIME NULL COMMENT '支付成功时间',
     seller_settled TINYINT NOT NULL DEFAULT 0 COMMENT '1 实付已结算给卖家',
+    from_cart TINYINT NOT NULL DEFAULT 0 COMMENT '1 购物车结算 0 立即购买等',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_order_user (user_id),

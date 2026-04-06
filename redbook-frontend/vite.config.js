@@ -64,7 +64,8 @@ function createApiProxy() {
     changeOrigin: true,
     bypass(req) {
       const u = req.url?.split('?')[0] ?? ''
-      if (u === '/src' || u.startsWith('/src/')) {
+      // proxy 前缀 `/s` 会匹配 /settings、/src 等；短链仅为 GET /s 与 /s/{code}
+      if (u.startsWith('/s') && u !== '/s' && !u.startsWith('/s/')) {
         return req.url
       }
     },
@@ -78,9 +79,14 @@ const apiProxy = createApiProxy()
 export default defineConfig({
   plugins: [vue()],
   server: {
+    // natapp 等穿透后 Host 为 *.natappfree.cc，Vite 默认会 403；仅开发环境使用
+    host: true,
+    allowedHosts: true,
     proxy: apiProxy,
   },
   preview: {
+    host: true,
+    allowedHosts: true,
     proxy: apiProxy,
   },
 })

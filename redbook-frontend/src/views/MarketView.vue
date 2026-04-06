@@ -9,6 +9,7 @@ import {
   View,
   Goods,
   Wallet,
+  Management,
 } from '@element-plus/icons-vue'
 import NoteMasonry from '../components/NoteMasonry.vue'
 import { noteRecommend } from '../api'
@@ -49,6 +50,10 @@ function goWallet() {
 
 function goProductSave() {
   router.push({ name: 'product-save' })
+}
+
+function goProductManage() {
+  router.push({ name: 'product-manage' })
 }
 
 function hasLinkedProducts(vo) {
@@ -111,6 +116,12 @@ onUnmounted(() => {
           <el-icon :size="22" color="#ff2442"><Goods /></el-icon>
         </div>
         <span>发布商品</span>
+      </div>
+      <div class="sc" @click="goProductManage">
+        <div class="icon-wrap">
+          <el-icon :size="22" color="#ff2442"><Management /></el-icon>
+        </div>
+        <span>我的商品</span>
       </div>
       <div class="sc" @click="goOrders">
         <div class="icon-wrap">
