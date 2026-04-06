@@ -1,9 +1,16 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NoteMasonry from '../components/NoteMasonry.vue'
 import FollowFeedView from './FollowFeedView.vue'
 import { noteRecommend } from '../api'
+import {
+  captureDiscoverRecommendScroll,
+  applyDiscoverRecommendScroll,
+  setDiscoverRecommendTabActive,
+} from '../utils/discoverRecommendScroll'
+
+defineOptions({ name: 'DiscoverView' })
 
 const route = useRoute()
 const router = useRouter()
@@ -56,9 +63,32 @@ function onScroll() {
   }
 }
 
-watch(subTab, (t) => {
-  if (t === 'recommend' && list.value.length === 0 && !finished.value) {
-    loadRecommend()
+function scheduleApplyRecommendScroll() {
+  nextTick(() => {
+    requestAnimationFrame(() => applyDiscoverRecommendScroll())
+  })
+}
+
+watch(
+  subTab,
+  (t, prev) => {
+    setDiscoverRecommendTabActive(t === 'recommend')
+    if (prev === 'recommend' && t === 'follow') {
+      captureDiscoverRecommendScroll()
+    }
+    if (t === 'recommend' && list.value.length === 0 && !finished.value) {
+      loadRecommend()
+    }
+    if (t === 'recommend') {
+      scheduleApplyRecommendScroll()
+    }
+  },
+  { immediate: true },
+)
+
+onActivated(() => {
+  if (subTab.value === 'recommend') {
+    scheduleApplyRecommendScroll()
   }
 })
 

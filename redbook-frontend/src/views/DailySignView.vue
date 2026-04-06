@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { signIn, signCount } from '../api'
 
-const streak = ref(0)
+const monthSignedDays = ref(0)
 const loading = ref(false)
 const signing = ref(false)
 
@@ -11,9 +11,10 @@ async function loadStreak() {
   loading.value = true
   try {
     const { data } = await signCount()
-    streak.value = Number(data) || 0
+    const n = typeof data === 'number' ? data : Number(data)
+    monthSignedDays.value = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0
   } catch {
-    streak.value = 0
+    monthSignedDays.value = 0
   } finally {
     loading.value = false
   }
@@ -46,10 +47,9 @@ onMounted(loadStreak)
     </header>
 
     <div class="card">
-      <div class="label">本月连续签到（截至今日）</div>
+      <div class="label">本月签到</div>
       <div v-if="loading" class="num muted">加载中…</div>
-      <div v-else class="num">{{ streak }}<span class="unit">天</span></div>
-      <p class="hint">进入本页时从服务端同步本月签到记录；签到成功后自动刷新连续天数。</p>
+      <div v-else class="num">{{ monthSignedDays }}<span class="unit">天</span></div>
       <div class="actions">
         <el-button type="primary" round :loading="signing" @click="doSign">签到</el-button>
         <el-button round :disabled="loading" @click="loadStreak">刷新</el-button>
@@ -82,7 +82,7 @@ onMounted(loadStreak)
 .num {
   font-size: 40px;
   font-weight: 800;
-  margin: 12px 0 8px;
+  margin: 12px 0 16px;
   line-height: 1.1;
   color: #e17055;
 }
@@ -96,12 +96,6 @@ onMounted(loadStreak)
   color: #999;
   font-size: 20px;
   font-weight: 600;
-}
-.hint {
-  font-size: 12px;
-  color: #999;
-  line-height: 1.5;
-  margin: 0 0 16px;
 }
 .actions {
   display: flex;

@@ -42,7 +42,6 @@ import DirectPayDialog from '../components/DirectPayDialog.vue'
 import {
   isProductOnShelf,
   isProductSoldOut,
-  PRODUCT_OFF_SHELF_MSG,
   PRODUCT_SOLD_OUT_MSG,
 } from '../utils/productShelf'
 
@@ -438,7 +437,7 @@ async function menuAddCart() {
   }
   if (!menuProduct.value) return
   if (!isProductOnShelf(menuProduct.value)) {
-    ElMessage.warning(PRODUCT_OFF_SHELF_MSG)
+    ElMessage.warning('已下架')
     return
   }
   if (isProductSoldOut(menuProduct.value)) {
@@ -461,7 +460,7 @@ function menuDirectPay() {
   }
   const p = menuProduct.value
   if (!isProductOnShelf(p)) {
-    ElMessage.warning(PRODUCT_OFF_SHELF_MSG)
+    ElMessage.warning('已下架')
     return
   }
   if (isProductSoldOut(p)) {
@@ -660,7 +659,7 @@ function closeAi() {
           <div v-for="p in products" :key="p.id" class="pro" role="button" tabindex="0" @click="openProductActions(p)">
             <div class="pro-thumb">
               <img :src="p.cover || ''" alt="" />
-              <div v-if="!isProductOnShelf(p)" class="off-mask">商品已下架</div>
+              <div v-if="!isProductOnShelf(p)" class="off-mask">已下架</div>
               <div v-else-if="isProductSoldOut(p)" class="off-mask">{{ PRODUCT_SOLD_OUT_MSG }}</div>
             </div>
             <div class="pt">{{ p.title }}</div>
@@ -676,7 +675,7 @@ function closeAi() {
             <div>
               <div class="pm-t">{{ menuProduct.title }}</div>
               <div class="pm-p">¥{{ priceYuan(menuProduct.priceCent) }}</div>
-              <div v-if="!isProductOnShelf(menuProduct)" class="pm-off">{{ PRODUCT_OFF_SHELF_MSG }}</div>
+              <div v-if="!isProductOnShelf(menuProduct)" class="pm-off">已下架</div>
               <div v-else-if="isProductSoldOut(menuProduct)" class="pm-off">{{ PRODUCT_SOLD_OUT_MSG }}</div>
             </div>
           </div>
@@ -706,6 +705,7 @@ function closeAi() {
         :product-id="directPayProduct?.id"
         :product-hint="directPayProduct"
         :fallback-seller-user-id="author?.id"
+        off-shelf-msg="已下架"
         @paid="() => router.push({ name: 'orders' })"
       />
 

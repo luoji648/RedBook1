@@ -68,7 +68,7 @@ async function closeOrder() {
   if (detail.value?.status !== 0) return
   try {
     await ElMessageBox.confirm(
-      '关闭后订单将取消，商品会回到购物车。确定关闭？',
+      '关闭后订单将取消；购物车中的商品不会被移除。确定关闭？',
       '关闭订单',
       { type: 'warning' }
     )
@@ -144,8 +144,8 @@ onMounted(() => load())
       </div>
       <div class="prices">
         <span>商品总额 ¥{{ yuan(detail.totalCent) }}</span>
-        <span v-if="detail.discountCent" class="disc">优惠 ¥{{ yuan(detail.discountCent) }}</span>
         <span v-if="detail.payCent != null" class="pay">应付 ¥{{ yuan(detail.payCent) }}</span>
+        <span v-if="detail.discountCent" class="disc">优惠 ¥{{ yuan(detail.discountCent) }}</span>
       </div>
       <div class="time">创建时间 {{ fmtTime(detail.createTime) }}</div>
       <div v-if="detail.status === 1 && detail.payTime" class="time">

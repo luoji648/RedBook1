@@ -89,10 +89,10 @@ function removeComment(node) {
       <img :src="commentIcon(node)" class="avatar" alt="" />
       <div class="main">
         <div class="meta">
-          <span v-if="replyToUid(node) != null" class="rt"
-            >回复 {{ replyToDisplayNick(node) || '用户' + replyToUid(node) }} ·
-          </span>
           <span class="u">{{ displayNick(node) }}</span>
+          <span v-if="replyToUid(node) != null" class="rt">
+            回复 {{ replyToDisplayNick(node) || '用户' + replyToUid(node) }}
+          </span>
         </div>
         <div class="txt">{{ commentRow(node).content }}</div>
         <div class="ops">
@@ -161,11 +161,15 @@ function removeComment(node) {
 }
 .meta {
   margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .rt {
   color: #999;
   font-size: 12px;
-  margin-right: 4px;
+  font-weight: 400;
 }
 .u {
   color: #333;

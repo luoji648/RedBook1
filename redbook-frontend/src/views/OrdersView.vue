@@ -64,6 +64,11 @@ function openDetail(o) {
   router.push({ name: 'order-detail', params: { orderId: String(o.id) } })
 }
 
+function goProduct(productId) {
+  if (productId == null) return
+  router.push({ name: 'product-detail', params: { id: String(productId) } })
+}
+
 async function refund(o) {
   try {
     await ElMessageBox.confirm(
@@ -85,7 +90,7 @@ async function refund(o) {
 async function closeOrder(o) {
   try {
     await ElMessageBox.confirm(
-      '关闭后订单将取消，商品会回到购物车。确定关闭？',
+      '关闭后订单将取消；购物车中的商品不会被移除。确定关闭？',
       '关闭订单',
       { type: 'warning' }
     )
@@ -125,19 +130,35 @@ onMounted(() => load(false))
   <div class="orders">
     <h2>我的订单</h2>
     <div v-if="!list.length" class="empty">暂无订单</div>
-    <div v-for="o in list" :key="o.id" class="row" @click="openDetail(o)">
-      <div class="head">
-        <span class="id">订单 #{{ o.id }}</span>
-        <span class="st">{{ statusText(o.status) }}</span>
+    <div v-for="o in list" :key="o.id" class="row">
+      <div class="row-body" @click="openDetail(o)">
+        <div class="head">
+          <span class="title-line">{{ o.listTitle || '订单' }}</span>
+          <span class="st">{{ statusText(o.status) }}</span>
+        </div>
+        <div v-if="o.products?.length" class="covers" @click.stop>
+          <div
+            v-for="(it, idx) in o.products"
+            :key="`${o.id}-${it.productId}-${idx}`"
+            class="cov-wrap"
+            role="button"
+            tabindex="0"
+            @click="goProduct(it.productId)"
+            @keydown.enter.prevent="goProduct(it.productId)"
+          >
+            <img v-if="it.cover" :src="it.cover" :alt="it.title || ''" class="cov" />
+            <div v-else class="cov cov-ph" />
+          </div>
+        </div>
+        <div class="prices">
+          <span>商品总额 ¥{{ yuan(o.totalCent) }}</span>
+          <template v-if="o.payCent != null">
+            <span class="pay">实付 ¥{{ yuan(o.payCent) }}</span>
+            <span v-if="o.discountCent" class="disc">优惠 ¥{{ yuan(o.discountCent) }}</span>
+          </template>
+        </div>
+        <div class="time">{{ o.createTime }}</div>
       </div>
-      <div class="prices">
-        <span>商品总额 ¥{{ yuan(o.totalCent) }}</span>
-        <template v-if="o.payCent != null">
-          <span v-if="o.discountCent" class="disc">优惠 ¥{{ yuan(o.discountCent) }}</span>
-          <span class="pay">实付 ¥{{ yuan(o.payCent) }}</span>
-        </template>
-      </div>
-      <div class="time">{{ o.createTime }}</div>
       <div class="row-actions" @click.stop>
         <el-button
           v-if="canClose(o)"
@@ -189,6 +210,8 @@ h2 {
 .row {
   padding: 14px 0;
   border-bottom: 1px solid #f0f0f0;
+}
+.row-body {
   cursor: pointer;
 }
 .row:hover {
@@ -197,10 +220,35 @@ h2 {
 .head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
 }
-.id {
+.title-line {
   font-weight: 600;
+  line-height: 1.35;
+  flex: 1;
+  min-width: 0;
+}
+.covers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.cov-wrap {
+  flex-shrink: 0;
+}
+.cov {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.cov-ph {
+  background: #eee;
 }
 .st {
   font-size: 13px;

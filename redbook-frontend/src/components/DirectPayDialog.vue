@@ -22,6 +22,8 @@ const props = defineProps({
    * 帖子场景：商品未写 seller_id 时传笔记作者用户 id，后端用于「关注卖家领券」判断
    */
   fallbackSellerUserId: { type: [Number, String], default: null },
+  /** 下架提示文案；不传则用全局默认（如购物车/商品页） */
+  offShelfMsg: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:modelValue', 'paid'])
@@ -124,7 +126,7 @@ async function claim() {
     return
   }
   if (offShelf.value) {
-    ElMessage.warning(PRODUCT_OFF_SHELF_MSG)
+    ElMessage.warning(offShelfMessage.value)
     return
   }
   claiming.value = true
@@ -159,7 +161,7 @@ async function pay() {
     return
   }
   if (offShelf.value) {
-    ElMessage.warning(PRODUCT_OFF_SHELF_MSG)
+    ElMessage.warning(offShelfMessage.value)
     return
   }
   const pid = Number(props.productId)
@@ -222,6 +224,9 @@ const displayPrice = computed(
 
 const mergedProduct = computed(() => productSnap.value ?? props.productHint ?? null)
 const offShelf = computed(() => mergedProduct.value != null && !isProductOnShelf(mergedProduct.value))
+const offShelfMessage = computed(() =>
+  props.offShelfMsg && props.offShelfMsg.trim() !== '' ? props.offShelfMsg : PRODUCT_OFF_SHELF_MSG
+)
 </script>
 
 <template>
@@ -234,7 +239,7 @@ const offShelf = computed(() => mergedProduct.value != null && !isProductOnShelf
   >
     <div v-if="loading && !productSnap && !productHint" class="muted">加载中…</div>
     <template v-else>
-      <el-alert v-if="offShelf" type="warning" :closable="false" class="off-alert" :title="PRODUCT_OFF_SHELF_MSG" />
+      <el-alert v-if="offShelf" type="warning" :closable="false" class="off-alert" :title="offShelfMessage" />
       <div class="row">
         <img v-if="displayCover" :src="displayCover" alt="" class="cov" />
         <div class="meta">

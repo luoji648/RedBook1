@@ -104,4 +104,21 @@ export async function postForm(url, params) {
   return { data: body.data, total: body.total }
 }
 
+/** multipart：勿手写 Content-Type，由浏览器带 boundary */
+export async function postMultipart(url, formData) {
+  const res = await instance.post(url, formData)
+  const body = res.data
+  if (!body || typeof body.success !== 'boolean') {
+    const text = '上传失败'
+    ElMessage.error(text)
+    throw new Error(text)
+  }
+  if (!body.success) {
+    const text = formatApiErrorMsg(body.errorMsg)
+    ElMessage.error(text)
+    throw new Error(text)
+  }
+  return { data: body.data, total: body.total }
+}
+
 export default instance
